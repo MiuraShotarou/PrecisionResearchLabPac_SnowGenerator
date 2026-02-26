@@ -12,9 +12,9 @@ public class SnowflakeCore
     private float _kappa, _mu, _gamma, _sigma, _deltaRho;
 
     // 格子
-    private bool[,]  _a;
-    private float[,] _b, _c, _d;
-    private int[,]   _neighbors;
+    private bool[,]  _a; //そのセルが結晶化しているかどうか
+    private float[,] _b, _c, _d; //境界質量, 結晶質量, 拡散質量
+    private int[,]   _neighbors; //
     private int      _size;
 
     private readonly int   _maxSteps;
@@ -40,8 +40,8 @@ public class SnowflakeCore
 
     public void RandomizeParams()
     {
-        _rho      = Mathf.Max(SampleNormal(0.6f,   0.2f),  0.01f);
-        _beta     = Mathf.Max(SampleNormal(1.6f,   0.3f),  0.01f);
+        _rho      = Mathf.Max(SampleNormal(0.6f,   0.2f),  0.01f); //0.6, 0.2
+        _beta     = Mathf.Max(SampleNormal(1.6f,   0.3f),  0.01f); //1.6, 0.3
         _alpha    = Mathf.Max(SampleNormal(0.15f,  0.07f), 0.01f);
         _theta    = Mathf.Max(SampleNormal(0.02f,  0.02f), 0.001f);
         _kappa    = Mathf.Max(SampleNormal(0.03f,  0.03f), 0.001f);
@@ -124,7 +124,7 @@ public class SnowflakeCore
     // -------------------------------------------------------
     // シミュレーション処理（SnowflakeSimulator.cs から移植）
     // -------------------------------------------------------
-    private void InitGrid(int size)
+    private void InitGrid(int size) //sizeの更新
     {
         _size      = size;
         _a         = new bool [size, size];
@@ -142,7 +142,7 @@ public class SnowflakeCore
         _c[mid, mid] = 1f;
         _d[mid, mid] = 0f;
     }
-
+    /// <summary> 空気中の水蒸気が結晶に取り込まれていくプロセスを再現する </summary>
     private void Step()
     {
         UpdateNeighbors();
@@ -157,12 +157,13 @@ public class SnowflakeCore
         if (_deltaRho != 0f)
             _rho *= 1f + _deltaRho;
     }
-
+    /// <summary></summary>
     private void UpdateNeighbors()
     {
-        for (int i = 0; i < _size; i++)
+        for (int i = 0; i < _size; i++) //_size * _size ぶん繰り返している → 11 * 11
         for (int j = 0; j < _size; j++)
         {
+            //
             if (_a[i, j]) { _neighbors[i, j] = 0; continue; }
             _neighbors[i, j] = NbCrystal(i, j);
         }
@@ -229,7 +230,7 @@ public class SnowflakeCore
             _d[i, j]    = 0f;
         }
     }
-
+    /// <summary> 隣接する結晶数 nbs と境界質量 _b が条件を満たした場合にセルを[結晶化する] </summary>
     private void Attachment()
     {
         for (int i = 0; i < _size; i++)
@@ -248,7 +249,7 @@ public class SnowflakeCore
             if (!attach) continue;
             _a[i, j]  = true;
             _c[i, j] += _b[i, j];
-            _b[i, j]  = 0f;
+            _b[i, j]  = 0f; //結晶化に必要な境界質量の閾値 // 結晶の表面に付着した水蒸気の量
             _d[i, j]  = 0f;
         }
     }
