@@ -5,8 +5,11 @@ using Unity.Mathematics;
 
 public partial struct SnowflakeSimSystem : ISystem
 {
+    /// <summary> システム生成時に一度だけ呼び出される </summary>
+    /// <param name="state"></param>
     public void OnCreate(ref SystemState state)
     {
+        // SnowflakeSettingsComponentを持つエンティティが存在するときだけOnUpdateを実行する
         state.RequireForUpdate<SnowflakeSettingsComponent>();
     }
 
@@ -17,11 +20,11 @@ public partial struct SnowflakeSimSystem : ISystem
             SystemAPI.Query<
                 RefRW<SnowflakeSettingsComponent>,
                 RefRW<SnowflakeParamsComponent>,
-                RefRW<SnowflakeGridComponent>>())
+                RefRW<SnowflakeGridComponent>>()) //Worldクラスからこれらのコンポーネントを取得する
         {
-            if (!settings.ValueRO.Running) continue;
+            if (!settings.ValueRO.Running) continue; //SnowflakeSettingsComponentのRunningプロパティ
 
-            for (int s = 0; s < settings.ValueRO.StepsPerFrame; s++)
+            for (int s = 0; s < settings.ValueRO.StepsPerFrame; s++) //StepsPerFrame
             {
                 if (settings.ValueRO.TotalSteps >= settings.ValueRO.MaxSteps)
                 {
@@ -29,12 +32,15 @@ public partial struct SnowflakeSimSystem : ISystem
                     break;
                 }
 
-                Step(ref settings.ValueRW, ref paramsComp.ValueRW, ref grid.ValueRW);
-                settings.ValueRW.TotalSteps++;
+                Step(ref settings.ValueRW, ref paramsComp.ValueRW, ref grid.ValueRW); //メッシュの生成処理（仮）
+                settings.ValueRW.TotalSteps++; //TotalStepsを加算 → 別にローカル変数でも良い
             }
         }
     }
-
+    /// <summary>シミュレーションデータの計算を行う</summary>
+    /// <param name="settings"></param>
+    /// <param name="p"></param>
+    /// <param name="grid"></param>
     private void Step(
         ref SnowflakeSettingsComponent settings,
         ref SnowflakeParamsComponent   p,
