@@ -1,4 +1,4 @@
-// SnowflakeParams.cs
+// SnowFlakeParams.cs
 using System;
 using UnityEngine;
 
@@ -7,7 +7,7 @@ using UnityEngine;
 /// Gravner & Griffeath (2007) 論文に基づく
 /// </summary>
 [Serializable]
-public class SnowflakeParams
+public class SnowFlakeParams
 {
     [Tooltip("蒸気密度")]
     public float rho   = 0.635f;
@@ -35,11 +35,9 @@ public class SnowflakeParams
 
     [Tooltip("ステップごとの蒸気密度変化率")]
     public float deltaRho = 0.0f;
-
-    public SnowflakeParams() { }
-
+    
     // コピーコンストラクタ
-    public SnowflakeParams(SnowflakeParams src)
+    public SnowFlakeParams(SnowFlakeParams src)
     {
         rho      = src.rho;
         beta     = src.beta;

@@ -1,5 +1,8 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
+using UnityEngine;
+using Random = System.Random;
 
 public static class Numpy
 {
@@ -32,10 +35,16 @@ public static class Numpy
         return result;
     }
 
-    // ----------------------------------------------------------------
-    // np.reshape(arr, (rows, cols))
-    // 1次元配列を2次元配列に変換
-    // ----------------------------------------------------------------
+    /// <summary>  </summary>
+    public static int[] Shape(this Array array)
+    {
+        int[] shape = new int[array.Rank];
+        for (int i = 0; i < array.Rank; i++)
+            shape[i] = array.GetLength(i);
+        return shape;
+    }
+
+    /// <summary> (配列) を (行数) と (列数) に対応した多次元配列に変換する </summary>
     public static Array Reshape(Array arr, int rows, int cols)
     {
         if (arr.Length != rows * cols)
@@ -112,6 +121,19 @@ public static class Numpy
         }
     }
 
+    /// <summary> options配列の中からランダムに要素を抽出し、 </summary>
+    public static Array Choice(float[] options, Array sizeRef)
+    {
+        int[] lengths = new int[sizeRef.Rank];
+        for (int i = 0; i < sizeRef.Rank; i++)
+            lengths[i] = sizeRef.GetLength(i);
+
+        var result = Array.CreateInstance(typeof(float), lengths);
+        foreach (int[] indices in Indices(lengths))
+            result.SetValue(options[new Random().Next(options.Length)], indices);
+        return result;
+    }
+
     // ----------------------------------------------------------------
     // np.column_stack([a, b, c])
     // 複数の1次元配列を列方向に結合して2次元配列にする
@@ -174,9 +196,7 @@ public static class Numpy
     {
         if (a.Length != b.Length)
             throw new ArgumentException("配列のサイズが一致しません");
-
         int rank = a.Rank;
-
         if (rank == 1)
         {
             var result = new bool[a.Length];
@@ -192,6 +212,31 @@ public static class Numpy
             for (int i = 0; i < rows; i++)
             for (int j = 0; j < cols; j++)
                 result[i, j] = (bool)Get(a, i, j) && (bool)Get(b, i, j);
+            return result;
+        }
+    }
+    public static Array LogicalOr(Array a, Array b)
+    {
+        if (a.Length != b.Length)
+            throw new ArgumentException("配列のサイズが一致しません");
+
+        int rank = a.Rank;
+
+        if (rank == 1)
+        {
+            var result = new bool[a.Length];
+            for (int i = 0; i < a.Length; i++)
+                result[i] = (bool)a.GetValue(i) || (bool)b.GetValue(i);
+            return result;
+        }
+        else
+        {
+            int rows   = a.GetLength(0);
+            int cols   = a.GetLength(1);
+            var result = new bool[rows, cols];
+            for (int i = 0; i < rows; i++)
+            for (int j = 0; j < cols; j++)
+                result[i, j] = (bool)a.GetValue(i, j) || (bool)b.GetValue(i, j);
             return result;
         }
     }
@@ -328,6 +373,38 @@ public static class Numpy
         }
         return (x, y);
     }
+    
+    public static (Array x, Array y) Indices(Array sizeRef)
+    {
+        int rows = sizeRef.GetLength(0);
+        int cols = sizeRef.GetLength(1);
+        var x    = new float[rows, cols];
+        var y    = new float[rows, cols];
+        for (int i = 0; i < rows; i++)
+        for (int j = 0; j < cols; j++)
+        {
+            x[i, j] = i;
+            y[i, j] = j;
+        }
+        return (x, y);
+    }
+    public static IEnumerable<int[]> Indices(int[] lengths)
+    {
+        int total = 1;
+        foreach (var l in lengths) total *= l;
+
+        for (int n = 0; n < total; n++)
+        {
+            int[] indices = new int[lengths.Length];
+            int   rem     = n;
+            for (int i = lengths.Length - 1; i >= 0; i--)
+            {
+                indices[i] = rem % lengths[i];
+                rem        /= lengths[i];
+            }
+            yield return indices;
+        }
+    }
 
     // ----------------------------------------------------------------
     // np.where(condition, ifTrue, ifFalse)
@@ -342,6 +419,18 @@ public static class Numpy
         for (int i = 0; i < rows; i++)
         for (int j = 0; j < cols; j++)
             result[i, j] = (bool)Get(condition, i, j) ? ifTrue : (float)Get(ifFalse, i, j);
+        return result;
+    }
+    public static Array Where(Array condition, Array ifTrue, float ifFalse = 0f)
+    {
+        int rows   = condition.GetLength(0);
+        int cols   = condition.GetLength(1);
+        var result = new float[rows, cols];
+        for (int i = 0; i < rows; i++)
+        for (int j = 0; j < cols; j++)
+            result[i, j] = (bool)condition.GetValue(i, j)
+                ? Convert.ToSingle(ifTrue.GetValue(i, j))
+                : ifFalse;
         return result;
     }
 
@@ -445,7 +534,39 @@ public static class Numpy
                 throw new ArgumentException($"不正なmodeです: {modeType}");
         }
     }
-
+    // np.full(size, value) に相当
+    public static Array Full<T>(int size, T value, int rows = 0, int cols = 0)
+    {
+        if (rows > 0 && cols > 0)
+        {
+            var result = new T[rows, cols];
+            for (int i = 0; i < rows; i++)
+            for (int j = 0; j < cols; j++)
+                result[i, j] = value;
+            return result;
+        }
+        return Enumerable.Repeat(value, size).ToArray();
+    }
+    // 1次元
+    public static float[] Empty(int size)
+    {
+        return new float[size];
+    }
+    // 2次元
+    public static float[,] Empty(int size0, int size1)
+    {
+        return new float[size0, size1];
+    }
+    // 3次元
+    public static float[,,] Empty(int size0, int size1, int size2)
+    {
+        return new float[size0, size1, size2];
+    }
+    // 4次元
+    public static float[,,,] Empty(int size0, int size1, int size2, int size3)
+    {
+        return new float[size0, size1, size2, size3];
+    }
     // ----------------------------------------------------------------
     // arr[mask]
     // bool配列でフィルタリングして1次元配列を返す
@@ -464,6 +585,7 @@ public static class Numpy
             output.SetValue(result[i], i);
         return output;
     }
+    
     /// <summary> レシーバーの型を型パラメータに指定した型のタプルへ変換する </summary>
     public static (T, T) Cast<T>(this (Array, Array) tuple)
     {

@@ -64,11 +64,11 @@ public class SnowflakeSimulator : MonoBehaviour
         _meshRenderer.material = new Material(Shader.Find("_PrecisionResearchLabPac/Snow"));
         _meshRenderer.sharedMaterial.SetFloat("_Cull", 0f);
 
-        // ランダムパラメータ適用
-        Params.Randomize(
-            RandomRho, RandomBeta, RandomAlpha, RandomTheta,
-            RandomKappa, RandomMu, RandomGamma, RandomSigma, RandomDeltaRho
-        );
+        // // ランダムパラメータ適用
+        // Params.Randomize(
+        //     RandomRho, RandomBeta, RandomAlpha, RandomTheta,
+        //     RandomKappa, RandomMu, RandomGamma, RandomSigma, RandomDeltaRho
+        // );
 
         InitGrid(11);
         UpdateMesh();
@@ -126,9 +126,9 @@ public class SnowflakeSimulator : MonoBehaviour
         Attachment();
         Grow();
 
-        // deltaRho による蒸気密度の更新
-        if (Params.deltaRho != 0f)
-            Params.rho *= 1f + Params.deltaRho;
+        // // deltaRho による蒸気密度の更新
+        // if (Params.deltaRho != 0f)
+        //     Params.rho *= 1f + Params.deltaRho;
     }
 
     // -------------------------------------------------------
