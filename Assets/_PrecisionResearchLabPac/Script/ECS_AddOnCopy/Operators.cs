@@ -71,7 +71,7 @@ public class Operators
         bool[] triangle_mask = (bool[])sortMask.Reduce((a, b) => (bool)a && (bool)b,
             true, AxisType.Row);//BoolIndexのオーバーライドが良い
         triangles = (int[,])UpdateTriangles(triangles, triangle_mask);
-        int[] vertex_indices_new = (int[])Numpy.CumSumMinusSelf(vertex_mask);//メソッド名リネームしたいのと - vertex_mask の式を追加したい
+        int[] vertex_indices_new = (int[])Numpy.CumSum(vertex_mask);//メソッド名リネームしたいのと - vertex_mask の式を追加したい
         triangles = (int[,])Numpy.RemapIndices(vertex_indices_new, triangles); //BoolIndex
         var (x, y) = Numpy.Indices(snowflake.size, snowflake.size).Cast<float[,]>();
         x = (float[,])Numpy.Reshape(Numpy.Ravel<float>(x).Select(X => X - snowflake.size / 2).ToArray(), x.GetLength(0), x.GetLength(1));
@@ -131,7 +131,7 @@ public class Operators
     }
 
     public Mesh ShadeAutoSmooth(Mesh mesh)
-    {//use_auto_smooth = True にするだけ
+    {//use_auto_smooth = True にするだ
         return ApplyMirror(mesh);
     }
 
@@ -208,12 +208,12 @@ public class Operators
     
     class AnimationImportError : IOException {public AnimationImportError(string message) : base(message) { } }
 
-    public static void ApplyUsdMeshCache(string filepath) //+ context
+    public static void ApplyUsdMeshCache(string filepath, ObjectProperties properties) //+ context
     {
         try
         {
             var modifierName = "Snowflake Anim";
-            var obj = Selection.activeGameObject;
+            var obj = properties.gameObject;
             var modifier = obj.GetComponent<Modifier>();
             
             if (string.IsNullOrEmpty(filepath)){
@@ -329,7 +329,7 @@ public class Operators
         }
     }
 
-    class SnowflakeGrow
+    public class SnowflakeGrow
     {
         public int steps = 100;
         public void Execute(ObjectProperties properties, int steps = -1)
@@ -338,10 +338,7 @@ public class Operators
             var snowflakeProps = properties;
             var (size, _) = (snowflakeProps.data.width, snowflakeProps.data.height);
             var snowflake = new Snowflake(MakeParams(snowflakeProps), size: size);
-            // var data = Numpy.Empty(size, size, 4);
-            // var beforeData = snowflakeProps.data.GetPixels();
             var data = ToFloat3D(snowflakeProps.data.GetPixels());
-            
             snowflake.a = (bool[,])Numpy.Reshape(Numpy.Ravel<float>(data.Slice(channel: 0)).Select(v => v != 0f).ToArray(),
                                                                                     data.GetLength(0), data.GetLength(1));
             snowflake.b = (float[,])data.Slice(channel: 1);
@@ -351,16 +348,15 @@ public class Operators
             var stepsPerFrame = snowflakeProps.stepsPerFrame;
             var frame = startSteps / stepsPerFrame;
             var usdFilePath = snowflakeProps.exportAnimation? snowflakeProps.animationFilepath : null;
-            EditorUtility.DisplayProgressBar("Simulating", "Step 0", properties.steps); //
-            Action<int> callback = step =>
+            Action<int> callback = step => //Simulateから呼ばれている
             {
-                EditorUtility.DisplayProgressBar("Simulating", "Step 0", 0f);
+                EditorUtility.DisplayProgressBar("Simulating", "Step 0", step);
                 if (!string.IsNullOrEmpty(usdFilePath) && (startSteps + step) % stepsPerFrame == 0)
                 {
                     frame = (startSteps + step) / stepsPerFrame;
                     new Operators().SaveToUsd(snowflake,
                         usdFilePath,
-                        Selection.activeGameObject.transform.localToWorldMatrix,
+                        properties.gameObject.transform.localToWorldMatrix,
                         frame);}
             };
 
@@ -369,12 +365,11 @@ public class Operators
                 if (!string.IsNullOrEmpty(usdFilePath) && frame == 0)
                 {
                     new Operators().SaveToUsd(snowflake, usdFilePath,
-                        Selection.activeGameObject.transform.localToWorldMatrix, frame);
+                        properties.gameObject.transform.localToWorldMatrix, frame);
                 }
                 
                 Simulate(snowflake, steps, snowflakeProps.deltaRho, callback
                 );
-                Debug.Log($"after simulate - snowflake.size: {snowflake.size}");
             }
             catch (AnimationExportError e)
             {
@@ -385,12 +380,10 @@ public class Operators
                 EditorUtility.ClearProgressBar(); //追加
             }
             EditorUtility.ClearProgressBar();
-            // var materials = Selection.activeGameObject.GetComponent<MeshRenderer>().materials;
             var mesh = new Operators().MakeMesh(snowflake);
             mesh = new Operators().ShadeAutoSmooth(mesh);
-            if (Selection.activeGameObject && Selection.activeGameObject.GetComponent<MeshFilter>() != null){
-                Selection.activeGameObject.GetComponent<MeshFilter>().mesh = mesh;}
-            // Debug.Log($"snowflake.size: {snowflake.size}, size: {size}");
+            if (properties.gameObject && properties.gameObject.GetComponent<MeshFilter>() != null){
+                properties.gameObject.GetComponent<MeshFilter>().mesh = mesh; }
             if (snowflake.size == size){
                 data.SetChannel(0, snowflake.a);
                 data.SetChannel(1, snowflake.b);
@@ -407,13 +400,13 @@ public class Operators
                 snowflakeProps.data = null;
                 snowflakeProps.data = new Operators().MakeImage(snowflake);}
             snowflakeProps.rho = snowflake.Params.rho;
-            snowflakeProps.steps += properties.steps;
+            snowflakeProps.steps += steps;
 
             if (!snowflakeProps.applyAnimation){
                 usdFilePath = null;}
             try
             {
-                ApplyUsdMeshCache(usdFilePath);
+                ApplyUsdMeshCache(usdFilePath, properties);
             }
             catch (AnimationImportError e)
             {
@@ -540,6 +533,14 @@ public class Operators
         mirroredMesh.normals   = newNormals;
         mirroredMesh.RecalculateBounds();
         return mirroredMesh;
+    }
+
+    public static void SaveMesh(Mesh mesh, string name)
+    {
+        string path = $"Assets/_PrecisionResearchLabPac/Mesh/Snowflake_{DateTime.Now.Ticks}.asset";
+        Directory.CreateDirectory("Assets/_PrecisionResearchLabPac/Mesh");
+        AssetDatabase.CreateAsset(mesh, path);
+        AssetDatabase.SaveAssets();
     }
 
     /// <summary> vertex_mask[triangles] </summary>

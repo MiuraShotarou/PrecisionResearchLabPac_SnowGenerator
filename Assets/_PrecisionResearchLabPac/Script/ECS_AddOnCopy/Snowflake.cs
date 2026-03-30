@@ -75,18 +75,21 @@ public class Snowflake
 
     void Melting()
     {
-        var boundary = ToBool(neighbors); // neighbors > 0
-        PythonFunction.Add(this.d, // d += dへの破壊的操作
-            this.b.BoolIndex(boundary).Mul(Numpy.Full(this.d.Length, Params.mu, this.d.GetLength(0), this.d.GetLength(1))) // b[boundary] * mu
-                .Add(this.c.BoolIndex(boundary).Mul(Numpy.Full(this.d.Length, Params.gamma, this.d.GetLength(0), this.d.GetLength(1)))) // + c[boundary] * gamma
-                .Div(Numpy.Full(this.d.Length, Params.rho, this.d.GetLength(0), this.d.GetLength(1))), true);                 // / rho
-        PythonFunction.Sub(this.b, this.b.BoolIndex(boundary).Mul(Numpy.Full(this.b.Length, Params.mu, this.b.GetLength(0), this.b.GetLength(1))), true); // b[boundary] -= b[boundary] * mu
-        PythonFunction.Sub(this.c, this.c.BoolIndex(boundary).Mul(Numpy.Full(this.c.Length, Params.gamma, this.c.GetLength(0), this.c.GetLength(1))), true); // c[boundary] -= c[boundary] * gamma
+        for (int i = 0; i < d.GetLength(0); i++)
+        for (int j = 0; j < d.GetLength(1); j++)
+        {
+            if (neighbors[i, j] > 0f)
+            {
+                d[i, j] += (b[i, j] * Params.mu + c[i, j] * Params.gamma) / Params.rho;
+                b[i, j] -= b[i, j] * Params.mu;
+                c[i, j] -= c[i, j] * Params.gamma;
+            }
+        }
     }
 
     void Diffusion()
     {
-        Debug.Assert(this.d.BoolIndex(this.a).Cast<float>().All(x => x == 0f));
+        Debug.Assert(this.d.BoolIndexExtract(this.a).Cast<float>().All(x => x == 0f));
         var outside = (bool[,])Numpy.Reshape(Numpy.Ravel<bool>(this.a).Select(A => !A).ToArray(), this.a.GetLength(0), this.a.GetLength(1));
         this.d = (float[,])PythonFunction.Div(
             PythonFunction.Add(
@@ -95,27 +98,33 @@ public class Snowflake
             ),
             Numpy.Full(this.d.Length, 7f, this.d.GetLength(0), this.d.GetLength(1))  // / 7
         );
-        Debug.Assert(this.d.BoolIndex(this.a).Cast<float>().All(x => x == 0f));
+        Debug.Assert(this.d.BoolIndexExtract(this.a).Cast<float>().All(x => x == 0f));
     }
 
     void Freezing()
     {
-        var boundary = ToBool(neighbors);
-        PythonFunction.Add(this.b, PythonFunction.Mul(this.d.BoolIndex(boundary), Numpy.Full(this.d.Length, Params.rho, this.d.GetLength(0), this.d.GetLength(1))).Mul(Numpy.Full(this.d.Length, 1 - Params.kappa, this.d.GetLength(0), this.d.GetLength(1))), true);
-        PythonFunction.Add(this.c, PythonFunction.Mul(this.d.BoolIndex(boundary), Numpy.Full(this.d.Length, Params.rho, this.d.GetLength(0), this.d.GetLength(1))).Mul(Numpy.Full(this.d.Length, Params.kappa, this.d.GetLength(0), this.d.GetLength(1))), true);
-        this.d = (float[,])this.d.BoolIndex((bool[,])Numpy.Reshape(boundary.Cast<bool>().Select(x => !x).ToArray(), boundary.GetLength(0), boundary.GetLength(1)));
+        for (int i = 0; i < d.GetLength(0); i++)
+        for (int j = 0; j < d.GetLength(1); j++)
+        {
+            if (neighbors[i, j] > 0f)
+            {
+                b[i, j] += d[i, j] * Params.rho * (1 - Params.kappa);
+                c[i, j] += d[i, j] * Params.rho * Params.kappa;
+                d[i, j] = 0f;
+            }
+        }
     }
 
     void Attachment()
     {
         var nearbyDiffusiveMass = (float[,])NbSum(this.d, 1).Mul(Numpy.Full(this.d.Length, Params.rho, this.d.GetLength(0), this.d.GetLength(1)));
         var boundary = ToBool(neighbors);
-        var nbs = neighbors.BoolIndex(boundary);
-        var b = (float[,])this.b.BoolIndex(boundary);
-        var a_mask = Numpy.Ravel<bool>((bool[,])a.BoolIndex(boundary)); //結晶セルに隣接している非結晶セル
+        var nbs = neighbors.BoolIndexExtract(boundary);
+        var b = this.b.BoolIndexExtract(boundary);
+        var a_mask = this.a.BoolIndexExtract(boundary); //結晶セルに隣接している非結晶セル
         for (int i = 0; i < a_mask.Length; i++)
         {
-            float nbs_i = Numpy.Ravel<float>(nbs)[i], b_i = Numpy.Ravel<float>(b)[i], ndm_i = Numpy.Ravel<float>(nearbyDiffusiveMass.BoolIndex(boundary))[i];
+            float nbs_i = Numpy.Ravel<float>(nbs)[i], b_i = Numpy.Ravel<float>(b)[i], ndm_i = Numpy.Ravel<float>(nearbyDiffusiveMass.BoolIndexExtract(boundary))[i];
             if (((nbs_i == 1 || nbs_i == 2) && b_i >= Params.beta)
                 ||
                 (nbs_i == 3 && (b_i >= 1 || (b_i >= Params.alpha && ndm_i < Params.theta)))
@@ -125,12 +134,13 @@ public class Snowflake
                 a_mask[i] = true;
             }
         }
-        this.a = (bool[,])Numpy.LogicalOr(this.a, (bool[,])Numpy.Reshape(a_mask, a.GetLength(0), a.GetLength(1)));
-        
+        this.a.BoolIndexSet(boundary, a_mask);
         var attached = (bool[,])Numpy.LogicalAnd(boundary, this.a);
-        PythonFunction.Add(this.c, this.c.BoolIndex(boundary).Add(this.b.BoolIndex(boundary)), true);
-        this.b = (float[,])this.b.BoolIndex((bool[,])Numpy.Reshape(attached.Cast<bool>().Select(x => !x).ToArray(), attached.GetLength(0), attached.GetLength(1)));
-        this.d = (float[,])this.d.BoolIndex((bool[,])Numpy.Reshape(attached.Cast<bool>().Select(x => !x).ToArray(), attached.GetLength(0), attached.GetLength(1)));
+        for (int i = 0; i < this.c.GetLength(0); i++)
+        for (int j = 0; j < this.c.GetLength(1); j++)
+            if (attached[i, j]) this.c[i, j] += this.b[i, j];
+        this.b.BoolIndexSet(attached, 0f);
+        this.d.BoolIndexSet(attached, 0f);
     }
 
     void Noise()
@@ -138,9 +148,15 @@ public class Snowflake
         if (Params.sigma != 0)
         {
             var boundary = ToBool(neighbors);
-            float[,] d_copy = this.d = (float[,])this.d.BoolIndex((bool[,])Numpy.Reshape(boundary.Cast<bool>().Select(x => !x).ToArray(), boundary.GetLength(0), boundary.GetLength(1)));
-            PythonFunction.Add(d_copy, PythonFunction.Mul(this.d.BoolIndex(boundary), Numpy.Choice(new []{1f - Params.sigma, 1f + Params.sigma}, d.BoolIndex(boundary).Shape())) , true);
-            this.d = d_copy;
+            for (int i = 0; i < d.GetLength(0); i++)
+            for (int j = 0; j < d.GetLength(1); j++)
+            {
+                if (boundary[i, j])
+                {
+                    float factor = (rng.NextDouble() < 0.5) ? 1f - Params.sigma : 1f + Params.sigma;
+                    d[i, j] *= factor;
+                }
+            }
         }
     }
 

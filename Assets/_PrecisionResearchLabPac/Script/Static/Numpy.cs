@@ -44,7 +44,7 @@ public static class Numpy
         return shape;
     }
 
-    /// <summary> (配列) を (行数) と (列数) に対応した多次元配列に変換する </summary>
+    /// <summary> (配列) を (行数) と (列数) に対応した多次元配列に変換する ※pyと処理が違う説 </summary>
     public static Array Reshape(Array arr, int rows, int cols)
     {
         if (arr.Length != rows * cols)
@@ -326,7 +326,7 @@ public static class Numpy
     // np.cumsum(arr) - arr
     // 累積和を計算して元の配列を引く
     // ----------------------------------------------------------------
-    public static Array CumSumMinusSelf(Array mask)
+    public static Array CumSum(Array mask)
     {
         var result = new int[mask.Length];
         int sum    = 0;

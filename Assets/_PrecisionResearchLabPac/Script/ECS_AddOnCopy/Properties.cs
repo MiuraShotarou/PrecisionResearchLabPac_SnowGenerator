@@ -9,6 +9,10 @@ public class ObjectProperties : MonoBehaviour //MonoBehaviourは正しい
     private Dictionary<string, object> annotations = new Dictionary<string, object>();
     //C#
     public Operators.SnowflakeGrowModal SnowflakeGrowModal;
+    public Operators.SnowflakeGrow SnowflakeGrow;
+    [HideInInspector] public int ProgressSteps = 0;
+    [HideInInspector] public int CompletionSteps = 0;
+    [HideInInspector] public int ExecutionSteps = 0;
     private void OnEnable(){
         EditorApplication.update += OnUpdate;
         }
@@ -18,7 +22,33 @@ public class ObjectProperties : MonoBehaviour //MonoBehaviourは正しい
             if (growing)
             {
                 SnowflakeGrowModal.Modal(this);
-            }}
+            }} //キャンセル処理が必要
+        if (SnowflakeGrow != null) {
+            if (ProgressSteps < CompletionSteps)
+            {
+                var start = Time.realtimeSinceStartup;
+                SnowflakeGrow.Execute(this, ExecutionSteps);
+                ProgressSteps += ExecutionSteps;
+                var stop = Time.realtimeSinceStartup;
+                if (stop - start > 0.12f && ExecutionSteps > 1) {
+                    ExecutionSteps--;}
+                else if (stop - start < 0.08f) {
+                    ExecutionSteps++;}
+                EditorUtility.DisplayProgressBar("Simulating", $"Step {ProgressSteps} / {CompletionSteps}", (float)ProgressSteps / CompletionSteps);
+            }
+            else if (CompletionSteps > 0)
+            {
+                EditorUtility.ClearProgressBar();
+                Operators.SaveMesh(GetComponent<Mesh>(), gameObject.name);
+                gameObject.transform.localScale *= 0.001f;
+                ProgressSteps = 0;
+                CompletionSteps = 0;
+            }
+        }
+        if (gameObject.name.Contains("Snowflake_1"))
+        {
+            // Debug.Log(steps);
+        }
     }
     private void OnDisable(){
         EditorApplication.update -= OnUpdate;
@@ -46,6 +76,7 @@ public class ObjectProperties : MonoBehaviour //MonoBehaviourは正しい
         };
     }
 
+    [HideInInspector]
     public Texture2D data;
 
     [Tooltip("Vapor density")]
@@ -97,10 +128,11 @@ public class ObjectProperties : MonoBehaviour //MonoBehaviourは正しい
     [IntField("Steps per frame", 1, 100)]
     public int stepsPerFrame = 1;
 
+    [HideInInspector]
     public bool growing = false;
 
-    [IntField("Simulation steps", 0, 1000)]
-    public int steps = 0;
+    [HideInInspector]
+    public int steps = 0; //累積ステップ数
 
     // randomフラグ
     public bool randomRho      = false;

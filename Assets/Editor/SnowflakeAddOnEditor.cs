@@ -24,8 +24,14 @@ public class SnowflakePanelEditor : Editor
         var properties = ((SnowflakePanel)target).GetComponent<ObjectProperties>();
         if (GUILayout.Button("Interactive"))
         {
-            properties.SnowflakeGrowModal = new Operators.SnowflakeGrowModal(); //GameObjectごとにインスタンスを保持
+            properties.SnowflakeGrowModal ??= new Operators.SnowflakeGrowModal(); //GameObjectごとにインスタンスを保持
             properties.SnowflakeGrowModal.Invoke(properties); //properties.growing = true;
+        }
+        if (GUILayout.Button("2000Steps"))
+        {
+            properties.SnowflakeGrow ??= new Operators.SnowflakeGrow(); //GameObjectごとにインスタンスを保持
+            properties.ExecutionSteps = 2000;
+            properties.CompletionSteps = 2000;
         }
     }
 }
