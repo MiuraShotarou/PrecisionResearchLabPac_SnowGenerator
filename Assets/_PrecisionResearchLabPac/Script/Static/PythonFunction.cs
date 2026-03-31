@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using UnityEngine;
 
 public static class PythonFunction
 {
@@ -152,5 +153,14 @@ public static class PythonFunction
         for (int j = 0; j < cols; j++)
             result.SetValue(Convert.ToSingle(a.GetValue(i, j)) % Convert.ToSingle(b.GetValue(i, j)), i, j);
         return result;
+    }
+    
+    public static float Normal(this System.Random rng, float mean, float stddev)
+    {
+        float u1 = 1f - (float)rng.NextDouble();
+        float u2 = 1f - (float)rng.NextDouble();
+        float z  = Mathf.Sqrt(-2f * Mathf.Log(u1))
+                   * Mathf.Cos(2f * Mathf.PI * u2);
+        return mean + stddev * z;
     }
 }

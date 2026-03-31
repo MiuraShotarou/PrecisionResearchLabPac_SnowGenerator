@@ -1,3 +1,4 @@
+using Unity.Entities;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -8,12 +9,9 @@ using pxr;
 using UnityEngine.InputSystem;
 using Object = UnityEngine.Object;
 
-/// <summary>
-/// snowflake.pyの結果をBlenderのメッシュに変換する。OK
-/// </summary>
-public class Operators
+/// <summary> System </summary>
+public partial struct Operators_ECS : ISystem
 {
-    // use Class
     private Icons__Init__ icons;
     private static readonly string USD_PRIM_PATH = "/Snowflake";
     public static SnowflakeParams MakeParams(ObjectProperties props)
@@ -29,7 +27,7 @@ public class Operators
             gamma = props.gamma,
             sigma = props.sigma,
         };
-    } 
+    }
     public static void RandomizeParams(
         SnowflakeParams @params,
         bool rho      = false,
@@ -614,4 +612,18 @@ public class Operators
         }
         return result;
     }
+    //[IComponentData]
+    // SnowflakeParams → IComponentData ○
+    // ObjectProperties のフィールド群 → IComponentData (2次元配列は1次元配列に変換しなくてはならないらしい)
+    // growing, steps, size などの状態フラグ
+    
+    //[ISystem]
+    // Snowflake.Step
+    // Operators.MakeMesh
+    // Operators.Simulate
+    
+    //[Authoring]
+    // ObjectProperties ○
+    
+    //コレクション系を NativeArrayに書き換える必要がある
 }
