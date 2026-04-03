@@ -16,7 +16,7 @@ public class SnowflakeParams
     public float sigma    = 0.0f;
 }
 /// <summary>
-/// 格子計算など、論文のアルゴリズムを実装しているスクリプト
+/// 格子計算など、論文のアルゴリズムを実装しているスクリプト。フィールドは計算用の値として使われる
 /// </summary>
 public class Snowflake
 {
@@ -30,6 +30,8 @@ public class Snowflake
     //C#
     public int size => a.GetLength(0);
     public float[,] neighbors;
+
+    /// <summary> a,b,c,dをいちいち初期化している </summary>
     public Snowflake(SnowflakeParams p, int size = 11, int autogrow = 10) {
         Params   = p;
         Autogrow = autogrow;

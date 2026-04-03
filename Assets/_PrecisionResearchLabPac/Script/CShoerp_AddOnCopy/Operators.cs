@@ -241,6 +241,7 @@ public class Operators
     {
         for (int step = 0; step < steps; step++)
         {
+            Debug.Log(step);
             snowflake.Step();
             if (deltaRho != 0f){
                 snowflake.Params.rho *= 1 + deltaRho;}

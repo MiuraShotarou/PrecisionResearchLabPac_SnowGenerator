@@ -1,3 +1,5 @@
+using Cysharp.Threading.Tasks;
+using Unity.VisualScripting;
 using UnityEngine;
 using UnityEditor;
 
@@ -32,6 +34,20 @@ public class SnowflakePanelEditor : Editor
             properties.SnowflakeGrow ??= new Operators.SnowflakeGrow(); //GameObjectごとにインスタンスを保持
             properties.ExecutionSteps = 2000;
             properties.CompletionSteps = 2000;
+        }
+    }
+}
+
+[CustomEditor(typeof(ClimateSettings))]
+public class ClimateSettingsEditor : Editor
+{
+    public override void OnInspectorGUI()
+    {
+        DrawDefaultInspector();
+        var settings = (ClimateSettings)target;
+        if (GUILayout.Button("Generate New"))
+        {
+            settings.GenerateNewAsync().Forget(ex => Debug.LogException(ex));
         }
     }
 }

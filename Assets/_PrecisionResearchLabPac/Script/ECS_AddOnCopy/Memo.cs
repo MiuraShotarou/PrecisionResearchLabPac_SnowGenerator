@@ -2,8 +2,8 @@ using UnityEngine;
 
 public class Memo : MonoBehaviour
 {
-    //アプローチ① 非同期処理（UniTask）でシミュレーション計算を行い、Mesh生成のみメインスレッドで行う
-    // Snowflakeごとに異なるパラメータ（ObjectProperties）を持たせ、そこからSnowflakeGrow.Executeを呼ぶ必要がある
+    //アプローチ① 結晶の移動のみECS, Mesh生成はUniTaskで実行する
+    // 期待する動作：Meshの生成 → GameObjectの生成 → すべてのGameObjectが生成し終えたら、Positionの初期化と移動処理を適用する
     
     //[IComponentData]
     // SnowflakeParams → IComponentData ○
@@ -12,7 +12,7 @@ public class Memo : MonoBehaviour
     
     //[ISystem]
     // Snowflake.Step
-    // Operators.MakeMesh
+    // Operators.Create
     // Operators.Simulate
     
     //[Authoring]

@@ -1,16 +1,18 @@
 using UnityEngine;
 using System.Collections.Generic;
 using Unity.Entities;
+using Unity.VisualScripting;
 using UnityEditor;
 
 /// <summary> Authoring </summary>
-public class Properties_ECS : MonoBehaviour
+public class SnowflakeAuthoring : MonoBehaviour
 {
-    [Header("FieldParameters")]
-    [Tooltip("CoverArea")]
-    public Vector3 coverArea = new Vector3(100, 500, 100);
-    
-    [Tooltip("FallAmount")]
-    [Range(0f, 100f)]
-    public int fallAmount = 100;
+    public class Baker : Baker<SnowflakeAuthoring>
+    {
+        public override void Bake(SnowflakeAuthoring authoring)
+        {
+            var entity = GetEntity(TransformUsageFlags.Dynamic);
+            AddComponent(entity, new MoveComponent());
+        }
+    }
 }
