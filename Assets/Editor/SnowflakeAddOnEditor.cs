@@ -34,6 +34,20 @@ public class SnowflakePanelEditor : Editor
             properties.SnowflakeGrow ??= new Operators.SnowflakeGrow(); //GameObjectごとにインスタンスを保持
             properties.ExecutionSteps = 2000;
             properties.CompletionSteps = 2000;
+            
+            // 完了を検知するためにEditorApplication.updateに登録
+            var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+            
+            void OnComplete()
+            {
+                if (properties.ProgressSteps >= properties.CompletionSteps)
+                {
+                    stopwatch.Stop();
+                    UnityEngine.Debug.Log($"200Steps完了時間: {stopwatch.Elapsed.TotalSeconds}秒");
+                    EditorApplication.update -= OnComplete;
+                }
+            }
+            EditorApplication.update += OnComplete;
         }
     }
 }

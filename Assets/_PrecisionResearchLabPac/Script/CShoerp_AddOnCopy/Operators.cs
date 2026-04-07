@@ -28,6 +28,10 @@ public class Operators
             mu = props.mu,
             gamma = props.gamma,
             sigma = props.sigma,
+            // a =  props.a,
+            // b =  props.b,
+            // c =  props.c,
+            // d =  props.d
         };
     } 
     public static void RandomizeParams(
@@ -52,9 +56,10 @@ public class Operators
         if (gamma)    @params.gamma    = Mathf.Max(SampleNormal(0.001f, 0.01f), 0f);
         if (sigma)    @params.sigma    = UnityEngine.Random.Range(0f, 1f);
     }
-    public (float[,] vertices, int[,] triangles) MakeMeshData(Snowflake snowflake)
+    private (float[,] vertices, int[,] triangles) MakeMeshData(Snowflake snowflake)
     {
-        int[,] vertex_indices_old = (int[,])Numpy.Reshape(Numpy.Arange((int)Math.Pow(snowflake.size, 2)), snowflake.size, snowflake.size);
+        var snowflakeSize = snowflake.size;
+        int[,] vertex_indices_old = (int[,])Numpy.Reshape(Numpy.Arange((int)Math.Pow(snowflakeSize, 2)), snowflakeSize, snowflakeSize);
         var triangles_1 = (int[,])Numpy.ColumnStack(new List<Array>{
             Numpy.Ravel<int>(vertex_indices_old.Slice(rowStop: -1, colStop: -1)),
             Numpy.Ravel<int>(vertex_indices_old.Slice(rowStart: 1, colStop: -1)),
@@ -73,9 +78,9 @@ public class Operators
         triangles = (int[,])UpdateTriangles(triangles, triangle_mask);
         int[] vertex_indices_new = (int[])Numpy.CumSum(vertex_mask);//メソッド名リネームしたいのと - vertex_mask の式を追加したい
         triangles = (int[,])Numpy.RemapIndices(vertex_indices_new, triangles); //BoolIndex
-        var (x, y) = Numpy.Indices(snowflake.size, snowflake.size).Cast<float[,]>();
-        x = (float[,])Numpy.Reshape(Numpy.Ravel<float>(x).Select(X => X - snowflake.size / 2).ToArray(), x.GetLength(0), x.GetLength(1));
-        y = (float[,])Numpy.Reshape(Numpy.Ravel<float>(y).Select(Y => Y - snowflake.size / 2).ToArray(), y.GetLength(0), y.GetLength(1));
+        var (x, y) = Numpy.Indices(snowflakeSize, snowflakeSize).Cast<float[,]>();
+        x = (float[,])Numpy.Reshape(Numpy.Ravel<float>(x).Select(X => X - snowflakeSize / 2).ToArray(), x.GetLength(0), x.GetLength(1));
+        y = (float[,])Numpy.Reshape(Numpy.Ravel<float>(y).Select(Y => Y - snowflakeSize / 2).ToArray(), y.GetLength(0), y.GetLength(1));
         x = (float[,])Numpy.Reshape(Numpy.Ravel<float>(x).Zip(Numpy.Ravel<float>(y), (X, Y) => X + Y / 2f).ToArray(), x.GetLength(0), x.GetLength(1));
         x = (float[,])Numpy.Reshape(Numpy.Ravel<float>(x).Select(X => X / Mathf.Cos(Mathf.Deg2Rad * 30f)).ToArray(), y.GetLength(0), y.GetLength(1));
         var z = (float[,])Numpy.Where(
@@ -96,9 +101,11 @@ public class Operators
         });
         return (vertices, triangles);
     }
-    public Mesh MakeMesh(Snowflake snowflake)
+    /// <summary> ShadeAutoSmoothを内部で実行するようにした </summary>
+    private Mesh MakeMesh(Snowflake snowflake)
     {
         var meshData = MakeMeshData(snowflake);
+        meshData = ShadeAutoSmooth(meshData.vertices, meshData.triangles);
         var vertices  = meshData.vertices;
         var triangles = meshData.triangles;
         Mesh mesh = new Mesh();
@@ -111,7 +118,8 @@ public class Operators
         mesh.RecalculateBounds();
         return mesh;
     }
-    public Texture2D MakeImage(Snowflake snowflake)
+    /// <summary> 事実上a,b,c,dの初期化 </summary>
+    private Texture2D MakeImage(Snowflake snowflake)
     {
         var texture2D = new Texture2D(
             snowflake.size,
@@ -130,9 +138,9 @@ public class Operators
         return texture2D;
     }
 
-    public Mesh ShadeAutoSmooth(Mesh mesh)
+    private (float[,], int[,]) ShadeAutoSmooth(float[,] vertices, int[,] triangles)
     {//use_auto_smooth = True にするだ
-        return ApplyMirror(mesh);
+        return ApplyMirror(vertices, triangles);
     }
 
     class AnimationExportError : IOException {public AnimationExportError(string message) : base(message) { } }
@@ -249,6 +257,8 @@ public class Operators
             callback(step + 1); //ここ
         }
     }
+
+    /// <summary> 利用しない </summary>
     public static object ObjectProperty(ObjectProperties properties, string name)
     {
         var annotation = properties.__annotations__[name];
@@ -257,14 +267,11 @@ public class Operators
 
     public class SnowflakeCreate //コンストラクタに bpy.types.Operator, object_utils.AddObjectHelper
     {
-        //UIと内部プロパティの紐づけ処理は省略
-        //poll メソッドも省略
-        //drawも省略
-        public GameObject MakeObject(Mesh mesh)
+        private GameObject MakeObject()
         {
             var obj = new GameObject("Snowflake");
             if (obj.GetComponent<MeshFilter>() == null){
-                obj.AddComponent<MeshFilter>().mesh = mesh; }
+                obj.AddComponent<MeshFilter>().mesh = new Mesh(); }
 
             if (obj.GetComponent<MeshRenderer>() == null){
                 obj.AddComponent<MeshRenderer>();}
@@ -279,10 +286,6 @@ public class Operators
             if (obj.GetComponent<SnowflakePanel>() == null){
                 obj.AddComponent<SnowflakePanel>();}
             
-            //scaleの設定は無視
-            //※そのうちコーディング
-            //modifiers.new(Mirror)
-            //modifiers.useAxis = [false, false, true] //どの軸にミラーを適用させるのか
             return obj;
         }
         public void Execute(ObjectProperties properties)
@@ -304,20 +307,22 @@ public class Operators
                 @params,
                 deltaRho: properties.randomDeltaRho
             );
-            var snowflake = new Snowflake(@params);
-            var mesh = new Operators().MakeMesh(snowflake);
-            mesh = new Operators().ShadeAutoSmooth(mesh); //+ context
-            var obj = MakeObject(mesh); //+ context
-            var objSnowflake = obj.GetComponent<ObjectProperties>(); //pyの方はsnowflakeという名前だが、型はこれで大丈
-            objSnowflake.data              = new Operators().MakeImage(snowflake);
-            objSnowflake.rho               = snowflake.Params.rho;
-            objSnowflake.beta              = snowflake.Params.beta;
-            objSnowflake.alpha             = snowflake.Params.alpha;
-            objSnowflake.theta             = snowflake.Params.theta;
-            objSnowflake.kappa             = snowflake.Params.kappa;
-            objSnowflake.mu                = snowflake.Params.mu;
-            objSnowflake.gamma             = snowflake.Params.gamma;
-            objSnowflake.sigma             = snowflake.Params.sigma;
+            // var snowflake = new Snowflake(@params); //a,b,c,d の初期値を作成
+            // SnowflakeParamsを代入しているだけなので改変
+            // var mesh = new Operators().MakeMesh(snowflake); //不要
+            // mesh = new Operators().ShadeAutoSmooth(mesh); //+ context
+            var obj = MakeObject(); //+ context
+            var objSnowflake = obj.GetComponent<ObjectProperties>();
+            int size = 11;
+            // objSnowflake.data              = new Operators().MakeImage(snowflake);
+            objSnowflake.rho               = @params.rho;
+            objSnowflake.beta              = @params.beta;
+            objSnowflake.alpha             = @params.alpha;
+            objSnowflake.theta             = @params.theta;
+            objSnowflake.kappa             = @params.kappa;
+            objSnowflake.mu                = @params.mu;
+            objSnowflake.gamma             = @params.gamma;
+            objSnowflake.sigma             = @params.sigma;
             objSnowflake.deltaRho          = properties.deltaRho;
             objSnowflake.exportAnimation   = properties.exportAnimation;
             objSnowflake.animationFilepath = properties.animationFilepath;
@@ -325,6 +330,17 @@ public class Operators
             objSnowflake.stepsPerFrame     = properties.stepsPerFrame;
             objSnowflake.growing           = false;
             objSnowflake.steps             = 0;
+            objSnowflake.a = new bool[size,size];
+            objSnowflake.b = new float[size,size];
+            objSnowflake.c = new float[size,size];
+            objSnowflake.d = new float[size,size];
+            for (int i = 0; i < size; i++)
+            for (int j = 0; j < size; j++)
+                objSnowflake.d[i, j] = 1f;
+            int mid = size / 2;
+            objSnowflake.a[mid, mid] = true;
+            objSnowflake.c[mid, mid] = 1f;
+            objSnowflake.d[mid, mid] = 0f;
             new SnowflakeGrow().Execute(objSnowflake, properties.steps); // Grow();
             // return ["FINISHED"]
         }
@@ -332,44 +348,46 @@ public class Operators
 
     public class SnowflakeGrow
     {
-        public int steps = 100;
+        private int steps = 100;
+        /// <summary> OnUpdateFlameCall </summary>
         public void Execute(ObjectProperties properties, int steps = -1)
         {
             steps = steps == -1? this.steps : steps;
-            var snowflakeProps = properties;
-            var (size, _) = (snowflakeProps.data.width, snowflakeProps.data.height);
-            var snowflake = new Snowflake(MakeParams(snowflakeProps), size: size);
-            var data = ToFloat3D(snowflakeProps.data.GetPixels());
-            snowflake.a = (bool[,])Numpy.Reshape(Numpy.Ravel<float>(data.Slice(channel: 0)).Select(v => v != 0f).ToArray(),
-                                                                                    data.GetLength(0), data.GetLength(1));
-            snowflake.b = (float[,])data.Slice(channel: 1);
-            snowflake.c = (float[,])data.Slice(channel: 2);
-            snowflake.d = (float[,])data.Slice(channel: 3);
-            var startSteps = snowflakeProps.steps;
-            var stepsPerFrame = snowflakeProps.stepsPerFrame;
-            var frame = startSteps / stepsPerFrame;
-            var usdFilePath = snowflakeProps.exportAnimation? snowflakeProps.animationFilepath : null;
+            // var (size, _) = (properties.data.width, properties.data.height); //a.GetLength(0), a.GetLength(1)相当
+            int size = properties.a.GetLength(0);
+            var snowflake = new Snowflake(properties, MakeParams(properties));
+            // ここから下の処理がいらなくなるかもしれない
+            // var data = ToFloat3D(properties.data.GetPixels());
+            // snowflake.a = (bool[,])Numpy.Reshape(Numpy.Ravel<float>(data.Slice(channel: 0)).Select(v => v != 0f).ToArray(),
+            //                                                                         data.GetLength(0), data.GetLength(1));
+            // snowflake.b = (float[,])data.Slice(channel: 1);
+            // snowflake.c = (float[,])data.Slice(channel: 2);
+            // snowflake.d = (float[,])data.Slice(channel: 3);
+            // var startSteps = properties.steps;
+            // var stepsPerFrame = properties.stepsPerFrame;
+            // var frame = startSteps / stepsPerFrame;
+            // var usdFilePath = properties.exportAnimation? properties.animationFilepath : null;
             Action<int> callback = step => //Simulateから呼ばれている
             {
                 EditorUtility.DisplayProgressBar("Simulating", "Step 0", step);
-                if (!string.IsNullOrEmpty(usdFilePath) && (startSteps + step) % stepsPerFrame == 0)
-                {
-                    frame = (startSteps + step) / stepsPerFrame;
-                    new Operators().SaveToUsd(snowflake,
-                        usdFilePath,
-                        properties.gameObject.transform.localToWorldMatrix,
-                        frame);}
+                // if (!string.IsNullOrEmpty(usdFilePath) && (startSteps + step) % stepsPerFrame == 0)
+                // {
+                //     frame = (startSteps + step) / stepsPerFrame;
+                //     new Operators().SaveToUsd(snowflake,
+                //         usdFilePath,
+                //         properties.gameObject.transform.localToWorldMatrix,
+                //         frame);}
             };
 
             try
             {
-                if (!string.IsNullOrEmpty(usdFilePath) && frame == 0)
-                {
-                    new Operators().SaveToUsd(snowflake, usdFilePath,
-                        properties.gameObject.transform.localToWorldMatrix, frame);
-                }
-                
-                Simulate(snowflake, steps, snowflakeProps.deltaRho, callback
+                // if (!string.IsNullOrEmpty(usdFilePath) && frame == 0)
+                // {
+                //     new Operators().SaveToUsd(snowflake, usdFilePath,
+                //         properties.gameObject.transform.localToWorldMatrix, frame);
+                // }
+                //
+                Simulate(snowflake, steps, properties.deltaRho, callback
                 );
             }
             catch (AnimationExportError e)
@@ -378,43 +396,51 @@ public class Operators
             }
             finally
             {
-                EditorUtility.ClearProgressBar(); //追加
+                EditorUtility.ClearProgressBar();
             }
-            EditorUtility.ClearProgressBar();
             var mesh = new Operators().MakeMesh(snowflake);
-            mesh = new Operators().ShadeAutoSmooth(mesh);
+            // mesh = new Operators().ShadeAutoSmooth(mesh); 本来は正しい
             if (properties.gameObject && properties.gameObject.GetComponent<MeshFilter>() != null){
                 properties.gameObject.GetComponent<MeshFilter>().mesh = mesh; }
+            
             if (snowflake.size == size){
-                data.SetChannel(0, snowflake.a);
-                data.SetChannel(1, snowflake.b);
-                data.SetChannel(2, snowflake.c);
-                data.SetChannel(3, snowflake.d);
+                // data.SetChannel(0, snowflake.a);
+                // data.SetChannel(1, snowflake.b);
+                // data.SetChannel(2, snowflake.c);
+                // data.SetChannel(3, snowflake.d);
                 
-                // properties.data.SetPixelData(Numpy.Ravel<float>(data), 0); //失敗例
-                properties.data.SetPixels(new Operators().ToColors(Numpy.Ravel<object>(data)));
-                properties.data.Apply();}
+                // properties.data.SetPixels(new Operators().ToColors(Numpy.Ravel<object>(data)));
+                // properties.data.Apply();
+                }
             else{
                 #if UNITY_EDITOR
-                Object.DestroyImmediate(snowflakeProps.data);
+                Debug.Log("SnowflakeGrow.Execute - else");
+                // Object.DestroyImmediate(properties.data);
                 #endif
-                snowflakeProps.data = null;
-                snowflakeProps.data = new Operators().MakeImage(snowflake);}
-            snowflakeProps.rho = snowflake.Params.rho;
-            snowflakeProps.steps += steps;
+                // properties.data = null;
+                // properties.data = new Operators().MakeImage(snowflake);
+            }
+            
+            // MyCode
+            properties.a = snowflake.a;
+            properties.b = snowflake.b;
+            properties.c = snowflake.c;
+            properties.d = snowflake.d;
+            properties.rho = snowflake.Params.rho;
+            properties.steps += steps;
 
-            if (!snowflakeProps.applyAnimation){
-                usdFilePath = null;}
-            try
-            {
-                ApplyUsdMeshCache(usdFilePath, properties);
-            }
-            catch (AnimationImportError e)
-            {
-                Debug.LogWarning($"Animation import failed: {e.Message}");
-            }
-            if (!string.IsNullOrEmpty(usdFilePath)){
-                EditorApplication.delayCall += () => { EditorWindow.GetWindow<AnimationWindow>().time = frame;} ;}
+            // if (!properties.applyAnimation){
+            //     usdFilePath = null;}
+            // try
+            // {
+            //     ApplyUsdMeshCache(usdFilePath, properties);
+            // }
+            // catch (AnimationImportError e)
+            // {
+            //     Debug.LogWarning($"Animation import failed: {e.Message}");
+            // }
+            // if (!string.IsNullOrEmpty(usdFilePath)){
+            //     EditorApplication.delayCall += () => { EditorWindow.GetWindow<AnimationWindow>().time = frame;} ;}
         }
     }
     /// <summary>
@@ -484,56 +510,39 @@ public class Operators
         return mean + stddev * z;
     }
     
-    private Mesh ApplyMirror(Mesh mesh)
+    private (float[,], int[,]) ApplyMirror(float[,] vertices, int[,] triangles)
     {
-        if (mesh == null) return mesh;
-        var srcVertices  = mesh.vertices;
-        var srcTriangles = mesh.triangles;
-        var srcNormals   = mesh.normals;
-        var newVertices  = new Vector3[srcVertices.Length * 2];
-        var newNormals   = new Vector3[srcNormals.Length * 2];
-        var newTriangles = new int[srcTriangles.Length * 2];
+        int vertRow      = vertices.GetLength(0);
+        // vertCol == 3
+        int triangleRow  = triangles.GetLength(0);
+        int triangleCol  = triangles.GetLength(1);
+        
+        var expVertices  = new float[vertRow * 2, 3];
+        var expTriangles = new int[triangleRow * 2, triangleCol];
         // 元の頂点をそのままコピー
-        for (int i = 0; i < srcVertices.Length; i++)
-        {
-            newVertices[i] = srcVertices[i];
-            newNormals[i]  = srcNormals[i];
+        for (int i = 0; i < vertRow; i++){
+            expVertices[i, 0] = vertices[i, 0];
+            expVertices[i, 1] = vertices[i, 1];
+            expVertices[i, 2] = vertices[i, 2];
         }
         // ミラーした頂点を追加
-        for (int i = 0; i < srcVertices.Length; i++)
-        {
-            var v = srcVertices[i];
-            newVertices[srcVertices.Length + i] = new Vector3(
-                v.x,
-                v.y,
-                -v.z
-            );
-            var n = srcNormals[i];
-            newNormals[srcNormals.Length + i] = new Vector3(
-                n.x,
-                n.y,
-                -n.z
-            );
+        for (int i = 0; i < vertRow; i++){
+            expVertices[vertRow + i, 0] =  vertices[i, 0];
+            expVertices[vertRow + i, 1] =  vertices[i, 1];
+            expVertices[vertRow + i, 2] = -vertices[i, 2];
         }
         // 元のトライアングルをそのままコピー
-        for (int i = 0; i < srcTriangles.Length; i++)
-            newTriangles[i] = srcTriangles[i];
-        // ミラーしたトライアングル（Index）を追加（巻き順を逆にする）
-        for (int i = 0; i < srcTriangles.Length; i += 3)
-        {
-            int offset = srcTriangles.Length; //36
-            int vOffset = srcVertices.Length; //24
-            //srcTriangles頂点Index
-            newTriangles[offset + i + 0] = srcTriangles[i + 0] + vOffset;
-            newTriangles[offset + i + 1] = srcTriangles[i + 2] + vOffset; // 巻き順を逆に
-            newTriangles[offset + i + 2] = srcTriangles[i + 1] + vOffset;
+        for (int i = 0; i < triangleRow; i++)
+            for (int j = 0; j < triangleCol; j++){
+            expTriangles[i, j] = triangles[i, j];
         }
-        var mirroredMesh = new Mesh();
-        mirroredMesh.vertices  = newVertices;
-        mirroredMesh.triangles = newTriangles;
-        mirroredMesh.normals   = newNormals;
-        mirroredMesh.RecalculateBounds();
-        return mirroredMesh;
+        // ミラーしたトライアングルを追加（巻き順逆）
+        for (int i = 0; i < triangleRow; i++){
+            expTriangles[triangleRow + i, 0] = triangles[i, 0] + vertRow;
+            expTriangles[triangleRow + i, 1] = triangles[i, 2] + vertRow;
+            expTriangles[triangleRow + i, 2] = triangles[i, 1] + vertRow;
+        }
+        return (expVertices, expTriangles);
     }
 
     public static void SaveMesh(Mesh mesh, string name)
@@ -573,16 +582,15 @@ public class Operators
 
     Color[] ToColors(object[] arr)
     {
-        if (arr.Length % 4 != 0)
-            throw new ArgumentException($"要素数が4の倍数ではありません: {arr.Length}");
         var result = new Color[arr.Length / 4];
-        for (int i = 0; i < result.Length; i++)
+        for (int i = 0; i < result.Length; i++){
             result[i] = new Color(
-                Convert.ToSingle(arr[i * 4 + 0]),  // R → a
-                Convert.ToSingle(arr[i * 4 + 1]),  // G → b
-                Convert.ToSingle(arr[i * 4 + 2]),  // B → c
-                Convert.ToSingle(arr[i * 4 + 3])   // A → d
+                Convert.ToSingle(arr[i * 4 + 0]), // R → a
+                Convert.ToSingle(arr[i * 4 + 1]), // G → b
+                Convert.ToSingle(arr[i * 4 + 2]), // B → c
+                Convert.ToSingle(arr[i * 4 + 3]) // A → d
             );
+        }
         return result;
     }
     
@@ -602,7 +610,7 @@ public class Operators
     }
     public static float[,,] ToFloat3D(Color[] pixels)
     {
-        int size   = (int)Mathf.Sqrt(pixels.Length);  // √(length) = 一辺のサイズ
+        int size   = (int)Mathf.Sqrt(pixels.Length);
         var result = new float[size, size, 4];
         for (int i = 0; i < size; i++)
         for (int j = 0; j < size; j++)

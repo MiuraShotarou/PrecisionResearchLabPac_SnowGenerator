@@ -1,9 +1,8 @@
-using System;
 using UnityEngine;
 using System.Collections.Generic;
 using UnityEditor;
 [ExecuteAlways]
-public class ObjectProperties : MonoBehaviour //MonoBehaviourは正しい
+public class ObjectProperties : MonoBehaviour
 {
     public Dictionary<string, object> __annotations__ => annotations;
     private Dictionary<string, object> annotations = new Dictionary<string, object>();
@@ -39,15 +38,11 @@ public class ObjectProperties : MonoBehaviour //MonoBehaviourは正しい
             else if (CompletionSteps > 0)
             {
                 EditorUtility.ClearProgressBar();
-                Operators.SaveMesh(GetComponent<Mesh>(), gameObject.name);
+                Operators.SaveMesh(GetComponent<MeshFilter>().mesh, gameObject.name);
                 gameObject.transform.localScale *= 0.001f;
                 ProgressSteps = 0;
                 CompletionSteps = 0;
             }
-        }
-        if (gameObject.name.Contains("Snowflake_1"))
-        {
-            // Debug.Log(steps);
         }
     }
     private void OnDisable(){
@@ -145,11 +140,17 @@ public class ObjectProperties : MonoBehaviour //MonoBehaviourは正しい
     public bool randomSigma    = false;
     public bool randomDeltaRho = false;
 
-    [Tooltip("Thickness of the snowflake")]
-    [FloatField("Thickness", min: 0f, softMax: 1f, precision: 2, step: 0.01f)]
-    public float thickness = 0.01f;
+    // [Tooltip("Thickness of the snowflake")]
+    // [FloatField("Thickness", min: 0f, softMax: 1f, precision: 2, step: 0.01f)]
+    // public float thickness = 0.01f;
+    //
+    // [Tooltip("Overall scale of the snowflake")]
+    // [FloatField("Scale", min: 0f, softMax: 1f, precision: 2, step: 0.01f)]
+    // public float scale = 0.01f;
 
-    [Tooltip("Overall scale of the snowflake")]
-    [FloatField("Scale", min: 0f, softMax: 1f, precision: 2, step: 0.01f)]
-    public float scale = 0.01f;
+    // Snowflake毎のa,b,c,d
+    public bool[,] a = {};
+    public float[,] b = {};
+    public float[,] c = {};
+    public float[,] d = {};
 }

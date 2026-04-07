@@ -1,22 +1,41 @@
 using System;
 using System.Linq;
 using UnityEngine;
+using Random = System.Random;
+
 /// <summary>
-/// 定数コンテナ。インスタンス利用で良い
+/// StructData
 /// </summary>
-public class SnowflakeParams
+public struct SnowflakeParams
 {
-    public float rho      = 0.635f;
-    public float beta     = 1.6f;
-    public float alpha    = 0.4f;
-    public float theta    = 0.025f;
-    public float kappa    = 0.005f;
-    public float mu       = 0.015f;
-    public float gamma    = 0.0005f;
-    public float sigma    = 0.0f;
+    public float rho;
+    public float beta;
+    public float alpha;
+    public float theta;
+    public float kappa;
+    public float mu;
+    public float gamma;
+    public float sigma;
+    
+    //MyCode ※削除したい
+    // public bool[,] a;
+    // public float[,] b;
+    // public float[,] c;
+    // public float[,] d;
+    public static readonly SnowflakeParams Default = new SnowflakeParams
+    {
+        rho   = 0.635f,
+        beta  = 1.6f,
+        alpha = 0.4f,
+        theta = 0.025f,
+        kappa = 0.005f,
+        mu    = 0.015f,
+        gamma = 0.0005f,
+        sigma = 0.0f,
+    };
 }
 /// <summary>
-/// 格子計算など、論文のアルゴリズムを実装しているスクリプト。フィールドは計算用の値として使われる
+/// SnowflakeSystem → 格子計算など、論文のアルゴリズムを実装しているスクリプト。フィールドは計算用の値として使われる
 /// </summary>
 public class Snowflake
 {
@@ -26,28 +45,29 @@ public class Snowflake
     public float[,] b;
     public float[,] c;
     public float[,] d;
-    public System.Random rng;
+    public Random rng = new ();
     //C#
     public int size => a.GetLength(0);
     public float[,] neighbors;
-
-    /// <summary> a,b,c,dをいちいち初期化している </summary>
-    public Snowflake(SnowflakeParams p, int size = 11, int autogrow = 10) {
+    
+    public Snowflake(ObjectProperties properties, SnowflakeParams p, int autogrow = 10) {
+        this.a = properties.a;
+        this.b = properties.b;
+        this.c = properties.c;
+        this.d = properties.d;
         Params   = p;
         Autogrow = autogrow;
-        // 初期化のみリファクタ
-        a = new bool[size, size];
-        b = new float[size, size];
-        c = new float[size, size];
-        d = new float[size, size];
-        for (int i = 0; i < size; i++)
-        for (int j = 0; j < size; j++)
-            d[i, j] = 1f;
-        int mid = size / 2;
-        a[mid, mid] = true;
-        c[mid, mid] = 1f;
-        d[mid, mid] = 0f;
-        rng = new System.Random();
+        // a = new bool[size,size];
+        // b = new float[size,size];
+        // c = new float[size,size];
+        // d = new float[size,size];
+        // for (int i = 0; i < size; i++)
+        // for (int j = 0; j < size; j++)
+        //     d[i, j] = 1f;
+        // int mid = size / 2;
+        // a[mid, mid] = true;
+        // c[mid, mid] = 1f;
+        // d[mid, mid] = 0f;
     }
 
     /// <summary>
