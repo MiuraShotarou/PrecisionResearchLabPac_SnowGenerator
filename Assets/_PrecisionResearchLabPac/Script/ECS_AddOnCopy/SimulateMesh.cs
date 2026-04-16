@@ -154,7 +154,7 @@ public class SimulateMesh
 //         this.mesh.SetVertices(Enumerable.Range(0, vertices.GetLength(0))
 //             .Select(i => new Vector3(vertices[i, 0], vertices[i, 1], vertices[i, 2]))
 //             .ToList());
-//         this.mesh.SetTriangles(Numpy.Ravel<int>(triangles).ToList(), 0);
+//         this.mesh.SetTriangles(NumpyClass.Ravel<int>(triangles).ToList(), 0);
 //         this.mesh.RecalculateNormals(); //ポリゴンの頂点が共有されていればここでスムーズシェードの機能が使えるらしい
 //         this.mesh.RecalculateBounds();
 //     }

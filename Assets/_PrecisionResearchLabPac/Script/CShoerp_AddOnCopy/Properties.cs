@@ -38,7 +38,7 @@ public class ObjectProperties : MonoBehaviour
             else if (CompletionSteps > 0)
             {
                 EditorUtility.ClearProgressBar();
-                Operators.SaveMesh(GetComponent<MeshFilter>().mesh, gameObject.name);
+                Operators.SaveMesh(GetComponent<MeshFilter>().sharedMesh, gameObject.name);
                 gameObject.transform.localScale *= 0.001f;
                 ProgressSteps = 0;
                 CompletionSteps = 0;

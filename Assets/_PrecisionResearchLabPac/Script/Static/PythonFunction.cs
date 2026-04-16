@@ -21,7 +21,7 @@ public static class PythonFunction
         for (int j = 0; j < cols; j++)
             result[i, j] = mask[i, j] ? arr[i, j] : default;  // falseは0埋め
         return result;
-    }
+    }//NumpyClass
     
     // true の要素だけ抽出した1次元配列を返す（本来のブールインデックス）
     public static T[] BoolIndexExtract<T>(this T[,] arr, bool[,] mask)

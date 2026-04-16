@@ -4,10 +4,10 @@ using System.Linq;
 using UnityEngine;
 using Random = System.Random;
 
-public static class Numpy
+public static class NumpyClass
 {
     // ----------------------------------------------------------------
-    // ユーティリティ：Array から要素を取得・設定
+    // ユーティリティ：Array から要素を取得・設定※NumPyには無い
     // ----------------------------------------------------------------
     private static object Get(Array arr, params int[] indices) => arr.GetValue(indices);
     private static void   Set(Array arr, object val, params int[] indices) => arr.SetValue(val, indices);

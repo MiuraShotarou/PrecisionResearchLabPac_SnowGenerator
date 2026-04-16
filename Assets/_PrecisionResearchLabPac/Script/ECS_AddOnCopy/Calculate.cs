@@ -49,7 +49,7 @@ public class Calculate
             rows      = data.rows,
             cols      = data.cols
         }.Schedule(size, 64);
-
+        
         var h2 = new MeltingJob
         {
             neighbors = data.neighbors,
@@ -68,8 +68,7 @@ public class Calculate
                 d         = data.d,
                 sigma     = data.sigma,
                 seed      = (uint)UnityEngine.Random.Range(1, int.MaxValue)
-            }.Schedule(size, 64, h2)
-            : h2;
+            }.Schedule(size, 64, h2): h2;
 
         var h4 = new DiffusionJob
         {

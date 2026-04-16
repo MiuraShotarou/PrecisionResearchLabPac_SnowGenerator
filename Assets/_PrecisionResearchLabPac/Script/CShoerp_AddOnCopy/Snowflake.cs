@@ -75,14 +75,14 @@ public class Snowflake
     /// </summary>
     public Array NbSum<T>(T[,] field, int cval = 0) where T : struct
     {
-        return Numpy.Pad(
-            Numpy.Reshape(
-                Numpy.Ravel<T>(field.Slice(rowStop: -2, colStart: 1, colStop: -1))
-                    .Zip(Numpy.Ravel<T>(field.Slice(rowStop: -2, colStart: 2)),              (a, b) => Convert.ToSingle(a) + Convert.ToSingle(b))
-                    .Zip(Numpy.Ravel<T>(field.Slice(rowStart: 1, rowStop: -1, colStop: -2)), (c, d) => c + Convert.ToSingle(d))
-                    .Zip(Numpy.Ravel<T>(field.Slice(rowStart: 1, rowStop: -1, colStart: 2)), (e, f) => e + Convert.ToSingle(f))
-                    .Zip(Numpy.Ravel<T>(field.Slice(rowStart: 2, colStop: -2)),              (g, h) => g + Convert.ToSingle(h))
-                    .Zip(Numpy.Ravel<T>(field.Slice(rowStart: 2, colStart: 1, colStop: -1)), (i, j) => i + Convert.ToSingle(j))
+        return NumpyClass.Pad(
+            NumpyClass.Reshape(
+                NumpyClass.Ravel<T>(field.Slice(rowStop: -2, colStart: 1, colStop: -1))
+                    .Zip(NumpyClass.Ravel<T>(field.Slice(rowStop: -2, colStart: 2)),              (a, b) => Convert.ToSingle(a) + Convert.ToSingle(b))
+                    .Zip(NumpyClass.Ravel<T>(field.Slice(rowStart: 1, rowStop: -1, colStop: -2)), (c, d) => c + Convert.ToSingle(d))
+                    .Zip(NumpyClass.Ravel<T>(field.Slice(rowStart: 1, rowStop: -1, colStart: 2)), (e, f) => e + Convert.ToSingle(f))
+                    .Zip(NumpyClass.Ravel<T>(field.Slice(rowStart: 2, colStop: -2)),              (g, h) => g + Convert.ToSingle(h))
+                    .Zip(NumpyClass.Ravel<T>(field.Slice(rowStart: 2, colStart: 1, colStop: -1)), (i, j) => i + Convert.ToSingle(j))
                     .ToArray(),
                 field.GetLength(0) - 2,
                 field.GetLength(1) - 2),
@@ -90,8 +90,8 @@ public class Snowflake
     }
 
     void UpdateNeighbors(){
-        this.neighbors = (float[,])Numpy.Where((bool[,])Numpy.Reshape(Numpy.Ravel<bool>(this.a).Select(v => !v).ToArray(),this.a.GetLength(0), this.a.GetLength(1)),
-            NbSum((int[,])Numpy.Reshape(Numpy.Ravel<bool>(this.a).Select(v => v ? 1 : 0).ToArray(),this.a.GetLength(0), this.a.GetLength(1))),
+        this.neighbors = (float[,])NumpyClass.Where((bool[,])NumpyClass.Reshape(NumpyClass.Ravel<bool>(this.a).Select(v => !v).ToArray(),this.a.GetLength(0), this.a.GetLength(1)),
+            NbSum((int[,])NumpyClass.Reshape(NumpyClass.Ravel<bool>(this.a).Select(v => v ? 1 : 0).ToArray(),this.a.GetLength(0), this.a.GetLength(1))),
             0);
     }
 
@@ -112,13 +112,13 @@ public class Snowflake
     void Diffusion()
     {
         Debug.Assert(this.d.BoolIndexExtract(this.a).Cast<float>().All(x => x == 0f));
-        var outside = (bool[,])Numpy.Reshape(Numpy.Ravel<bool>(this.a).Select(A => !A).ToArray(), this.a.GetLength(0), this.a.GetLength(1));
+        var outside = (bool[,])NumpyClass.Reshape(NumpyClass.Ravel<bool>(this.a).Select(A => !A).ToArray(), this.a.GetLength(0), this.a.GetLength(1));
         this.d = (float[,])PythonFunction.Div(
             PythonFunction.Add(
-                PythonFunction.Mul(this.d, PythonFunction.Add(this.neighbors, Numpy.Full(this.d.Length, 1f, this.d.GetLength(0), this.d.GetLength(1)))),  // d * (1 + neighbors)
-                Numpy.Where(outside, NbSum(this.d, 1), 0f)  // np.where(outside, nbsum(d, 1), 0)
+                PythonFunction.Mul(this.d, PythonFunction.Add(this.neighbors, NumpyClass.Full(this.d.Length, 1f, this.d.GetLength(0), this.d.GetLength(1)))),  // d * (1 + neighbors)
+                NumpyClass.Where(outside, NbSum(this.d, 1), 0f)  // np.where(outside, nbsum(d, 1), 0)
             ),
-            Numpy.Full(this.d.Length, 7f, this.d.GetLength(0), this.d.GetLength(1))  // / 7
+            NumpyClass.Full(this.d.Length, 7f, this.d.GetLength(0), this.d.GetLength(1))  // / 7
         );
         Debug.Assert(this.d.BoolIndexExtract(this.a).Cast<float>().All(x => x == 0f));
     }
@@ -139,14 +139,14 @@ public class Snowflake
 
     void Attachment()
     {
-        var nearbyDiffusiveMass = (float[,])NbSum(this.d, 1).Mul(Numpy.Full(this.d.Length, Params.rho, this.d.GetLength(0), this.d.GetLength(1)));
+        var nearbyDiffusiveMass = (float[,])NbSum(this.d, 1).Mul(NumpyClass.Full(this.d.Length, Params.rho, this.d.GetLength(0), this.d.GetLength(1)));
         var boundary = ToBool(neighbors);
         var nbs = neighbors.BoolIndexExtract(boundary);
         var b = this.b.BoolIndexExtract(boundary);
         var a_mask = this.a.BoolIndexExtract(boundary); //結晶セルに隣接している非結晶セル
         for (int i = 0; i < a_mask.Length; i++)
         {
-            float nbs_i = Numpy.Ravel<float>(nbs)[i], b_i = Numpy.Ravel<float>(b)[i], ndm_i = Numpy.Ravel<float>(nearbyDiffusiveMass.BoolIndexExtract(boundary))[i];
+            float nbs_i = NumpyClass.Ravel<float>(nbs)[i], b_i = NumpyClass.Ravel<float>(b)[i], ndm_i = NumpyClass.Ravel<float>(nearbyDiffusiveMass.BoolIndexExtract(boundary))[i];
             if (((nbs_i == 1 || nbs_i == 2) && b_i >= Params.beta)
                 ||
                 (nbs_i == 3 && (b_i >= 1 || (b_i >= Params.alpha && ndm_i < Params.theta)))
@@ -157,7 +157,7 @@ public class Snowflake
             }
         }
         this.a.BoolIndexSet(boundary, a_mask);
-        var attached = (bool[,])Numpy.LogicalAnd(boundary, this.a);
+        var attached = (bool[,])NumpyClass.LogicalAnd(boundary, this.a);
         for (int i = 0; i < this.c.GetLength(0); i++)
         for (int j = 0; j < this.c.GetLength(1); j++)
             if (attached[i, j]) this.c[i, j] += this.b[i, j];
@@ -205,10 +205,10 @@ public class Snowflake
         }.Max();
         if (dmax > 1e-2f)
         {
-            this.a = (bool[,])Numpy.Pad(this.a, Autogrow);
-            this.b = (float[,])Numpy.Pad(this.b, Autogrow);
-            this.c = (float[,])Numpy.Pad(this.c, Autogrow);
-            this.d = (float[,])Numpy.Pad(this.d, Autogrow, ModeType.Constant, 1f);
+            this.a = (bool[,])NumpyClass.Pad(this.a, Autogrow);
+            this.b = (float[,])NumpyClass.Pad(this.b, Autogrow);
+            this.c = (float[,])NumpyClass.Pad(this.c, Autogrow);
+            this.d = (float[,])NumpyClass.Pad(this.d, Autogrow, ModeType.Constant, 1f);
         }
     }
 
@@ -216,7 +216,7 @@ public class Snowflake
     {
         // オールAIコード
         int size = this.d.GetLength(0);
-        var (i, j) = Numpy.Indices(size, size);
+        var (i, j) = NumpyClass.Indices(size, size);
         float[,] ij = (float[,])PythonFunction.Add(i, j);
         int half = size / 2;
         bool[,] mask = new bool[size, size];

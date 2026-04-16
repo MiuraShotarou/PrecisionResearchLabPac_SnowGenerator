@@ -33,7 +33,7 @@ public class Operators
             // c =  props.c,
             // d =  props.d
         };
-    } 
+    }
     public static void RandomizeParams(
         SnowflakeParams @params,
         bool rho      = false,
@@ -59,45 +59,45 @@ public class Operators
     private (float[,] vertices, int[,] triangles) MakeMeshData(Snowflake snowflake)
     {
         var snowflakeSize = snowflake.size;
-        int[,] vertex_indices_old = (int[,])Numpy.Reshape(Numpy.Arange((int)Math.Pow(snowflakeSize, 2)), snowflakeSize, snowflakeSize);
-        var triangles_1 = (int[,])Numpy.ColumnStack(new List<Array>{
-            Numpy.Ravel<int>(vertex_indices_old.Slice(rowStop: -1, colStop: -1)),
-            Numpy.Ravel<int>(vertex_indices_old.Slice(rowStart: 1, colStop: -1)),
-            Numpy.Ravel<int>(vertex_indices_old.Slice(rowStop: -1, colStart: 1))
+        int[,] vertex_indices_old = (int[,])NumpyClass.Reshape(NumpyClass.Arange((int)Math.Pow(snowflakeSize, 2)), snowflakeSize, snowflakeSize);
+        var triangles_1 = (int[,])NumpyClass.ColumnStack(new List<Array>{
+            NumpyClass.Ravel<int>(vertex_indices_old.Slice(rowStop: -1, colStop: -1)),
+            NumpyClass.Ravel<int>(vertex_indices_old.Slice(rowStart: 1, colStop: -1)),
+            NumpyClass.Ravel<int>(vertex_indices_old.Slice(rowStop: -1, colStart: 1))
         });
-        var triangles_2 = (int[,])Numpy.ColumnStack(new List<Array>{
-            Numpy.Ravel<int>(vertex_indices_old.Slice(rowStart: 1, colStop: -1)),
-            Numpy.Ravel<int>(vertex_indices_old.Slice(rowStart: 1, colStart: 1)),
-            Numpy.Ravel<int>(vertex_indices_old.Slice(rowStop: -1, colStart: 1))
+        var triangles_2 = (int[,])NumpyClass.ColumnStack(new List<Array>{
+            NumpyClass.Ravel<int>(vertex_indices_old.Slice(rowStart: 1, colStop: -1)),
+            NumpyClass.Ravel<int>(vertex_indices_old.Slice(rowStart: 1, colStart: 1)),
+            NumpyClass.Ravel<int>(vertex_indices_old.Slice(rowStop: -1, colStart: 1))
         });
-        int[,] triangles = (int[,])Numpy.VStack(new List<Array> { triangles_1, triangles_2 });
-        bool[] vertex_mask = Numpy.Ravel<bool>(snowflake.a);
+        int[,] triangles = (int[,])NumpyClass.VStack(new List<Array> { triangles_1, triangles_2 });
+        bool[] vertex_mask = NumpyClass.Ravel<bool>(snowflake.a);
         bool[,] sortMask = (bool[,])UpdateVertexMask(vertex_mask, triangles);
         bool[] triangle_mask = (bool[])sortMask.Reduce((a, b) => (bool)a && (bool)b,
             true, AxisType.Row);//BoolIndexのオーバーライドが良い
         triangles = (int[,])UpdateTriangles(triangles, triangle_mask);
-        int[] vertex_indices_new = (int[])Numpy.CumSum(vertex_mask);//メソッド名リネームしたいのと - vertex_mask の式を追加したい
-        triangles = (int[,])Numpy.RemapIndices(vertex_indices_new, triangles); //BoolIndex
-        var (x, y) = Numpy.Indices(snowflakeSize, snowflakeSize).Cast<float[,]>();
-        x = (float[,])Numpy.Reshape(Numpy.Ravel<float>(x).Select(X => X - snowflakeSize / 2).ToArray(), x.GetLength(0), x.GetLength(1));
-        y = (float[,])Numpy.Reshape(Numpy.Ravel<float>(y).Select(Y => Y - snowflakeSize / 2).ToArray(), y.GetLength(0), y.GetLength(1));
-        x = (float[,])Numpy.Reshape(Numpy.Ravel<float>(x).Zip(Numpy.Ravel<float>(y), (X, Y) => X + Y / 2f).ToArray(), x.GetLength(0), x.GetLength(1));
-        x = (float[,])Numpy.Reshape(Numpy.Ravel<float>(x).Select(X => X / Mathf.Cos(Mathf.Deg2Rad * 30f)).ToArray(), y.GetLength(0), y.GetLength(1));
-        var z = (float[,])Numpy.Where(
-            (bool[,])Numpy.LogicalAnd(snowflake.a, (bool[,])Numpy.Reshape(
-                Numpy.Ravel<float>(snowflake.NbSum(
-                        (int[,])Numpy.Reshape(
-                            Numpy.Ravel<bool>(snowflake.a).Select(a => Convert.ToInt32(!a)).ToArray(),
+        int[] vertex_indices_new = (int[])NumpyClass.CumSum(vertex_mask);//メソッド名リネームしたいのと - vertex_mask の式を追加したい
+        triangles = (int[,])NumpyClass.RemapIndices(vertex_indices_new, triangles); //BoolIndex
+        var (x, y) = NumpyClass.Indices(snowflakeSize, snowflakeSize).Cast<float[,]>();
+        x = (float[,])NumpyClass.Reshape(NumpyClass.Ravel<float>(x).Select(X => X - snowflakeSize / 2).ToArray(), x.GetLength(0), x.GetLength(1));
+        y = (float[,])NumpyClass.Reshape(NumpyClass.Ravel<float>(y).Select(Y => Y - snowflakeSize / 2).ToArray(), y.GetLength(0), y.GetLength(1));
+        x = (float[,])NumpyClass.Reshape(NumpyClass.Ravel<float>(x).Zip(NumpyClass.Ravel<float>(y), (X, Y) => X + Y / 2f).ToArray(), x.GetLength(0), x.GetLength(1));
+        x = (float[,])NumpyClass.Reshape(NumpyClass.Ravel<float>(x).Select(X => X / Mathf.Cos(Mathf.Deg2Rad * 30f)).ToArray(), y.GetLength(0), y.GetLength(1));
+        var z = (float[,])NumpyClass.Where(
+            (bool[,])NumpyClass.LogicalAnd(snowflake.a, (bool[,])NumpyClass.Reshape(
+                NumpyClass.Ravel<float>(snowflake.NbSum(
+                        (int[,])NumpyClass.Reshape(
+                            NumpyClass.Ravel<bool>(snowflake.a).Select(a => Convert.ToInt32(!a)).ToArray(),
                             snowflake.a.GetLength(0), snowflake.a.GetLength(1)),
                         0))
                     .Select(v => v > 0).ToArray(),
                 snowflake.a.GetLength(0), snowflake.a.GetLength(1))),
             0f, snowflake.c);
-        var vertices = (float[,])Numpy.ColumnStack(new List<Array>
+        var vertices = (float[,])NumpyClass.ColumnStack(new List<Array>
         {
-            Numpy.MaskFilter(Numpy.Ravel<float>(x), vertex_mask),
-            Numpy.MaskFilter(Numpy.Ravel<float>(y), vertex_mask),
-            Numpy.MaskFilter(Numpy.Ravel<float>(z), vertex_mask)
+            NumpyClass.MaskFilter(NumpyClass.Ravel<float>(x), vertex_mask),
+            NumpyClass.MaskFilter(NumpyClass.Ravel<float>(y), vertex_mask),
+            NumpyClass.MaskFilter(NumpyClass.Ravel<float>(z), vertex_mask)
         });
         return (vertices, triangles);
     }
@@ -113,7 +113,7 @@ public class Operators
         mesh.SetVertices(Enumerable.Range(0, vertices.GetLength(0))
             .Select(i => new Vector3(vertices[i, 0], vertices[i, 1], vertices[i, 2]))
             .ToList());
-        mesh.SetTriangles(Numpy.Ravel<int>(triangles).ToList(), 0);
+        mesh.SetTriangles(NumpyClass.Ravel<int>(triangles).ToList(), 0);
         mesh.RecalculateNormals(); //ポリゴンの頂点が共有されていればここでスムーズシェードの機能が使えるらしい
         mesh.RecalculateBounds();
         return mesh;
@@ -130,8 +130,8 @@ public class Operators
         );
         texture2D.name = "Snowflake";
         texture2D.SetPixels(ToColors(
-            Numpy.Ravel<object>(Numpy.Stack(
-                new List<Array>{(float[,])Numpy.Reshape(Numpy.Ravel<bool>(snowflake.a).Select(v => v? 1f:0f).ToArray(), snowflake.a.GetLength(0), snowflake.a.GetLength(1)),
+            NumpyClass.Ravel<object>(NumpyClass.Stack(
+                new List<Array>{(float[,])NumpyClass.Reshape(NumpyClass.Ravel<bool>(snowflake.a).Select(v => v? 1f:0f).ToArray(), snowflake.a.GetLength(0), snowflake.a.GetLength(1)),
                     snowflake.b, snowflake.c, snowflake.d},
                 AxisType.None))));
         texture2D.Apply();
@@ -190,8 +190,8 @@ public class Operators
             var usdFaceVertexIndices = usdMesh.CreateFaceVertexIndicesAttr();
 
             var (vertices, triangles) = MakeMeshData(snowflake);
-            var faceVertexCounts = (int[])Numpy.Full(Numpy.Shape(triangles)[0], 3);
-            var faceVertexIndices = Numpy.Ravel<int>(triangles);
+            var faceVertexCounts = (int[])NumpyClass.Full(NumpyClass.Shape(triangles)[0], 3);
+            var faceVertexIndices = NumpyClass.Ravel<int>(triangles);
 
             var vtVertices = new VtValue(ToVtVec3fArray(vertices));
             var vtCounts = new VtValue(ToVtIntArray(faceVertexCounts));
@@ -353,42 +353,16 @@ public class Operators
         public void Execute(ObjectProperties properties, int steps = -1)
         {
             steps = steps == -1? this.steps : steps;
-            // var (size, _) = (properties.data.width, properties.data.height); //a.GetLength(0), a.GetLength(1)相当
             int size = properties.a.GetLength(0);
             var snowflake = new Snowflake(properties, MakeParams(properties));
-            // ここから下の処理がいらなくなるかもしれない
-            // var data = ToFloat3D(properties.data.GetPixels());
-            // snowflake.a = (bool[,])Numpy.Reshape(Numpy.Ravel<float>(data.Slice(channel: 0)).Select(v => v != 0f).ToArray(),
-            //                                                                         data.GetLength(0), data.GetLength(1));
-            // snowflake.b = (float[,])data.Slice(channel: 1);
-            // snowflake.c = (float[,])data.Slice(channel: 2);
-            // snowflake.d = (float[,])data.Slice(channel: 3);
-            // var startSteps = properties.steps;
-            // var stepsPerFrame = properties.stepsPerFrame;
-            // var frame = startSteps / stepsPerFrame;
-            // var usdFilePath = properties.exportAnimation? properties.animationFilepath : null;
             Action<int> callback = step => //Simulateから呼ばれている
             {
                 EditorUtility.DisplayProgressBar("Simulating", "Step 0", step);
-                // if (!string.IsNullOrEmpty(usdFilePath) && (startSteps + step) % stepsPerFrame == 0)
-                // {
-                //     frame = (startSteps + step) / stepsPerFrame;
-                //     new Operators().SaveToUsd(snowflake,
-                //         usdFilePath,
-                //         properties.gameObject.transform.localToWorldMatrix,
-                //         frame);}
             };
 
             try
             {
-                // if (!string.IsNullOrEmpty(usdFilePath) && frame == 0)
-                // {
-                //     new Operators().SaveToUsd(snowflake, usdFilePath,
-                //         properties.gameObject.transform.localToWorldMatrix, frame);
-                // }
-                //
-                Simulate(snowflake, steps, properties.deltaRho, callback
-                );
+                Simulate(snowflake, steps, properties.deltaRho, callback);
             }
             catch (AnimationExportError e)
             {
@@ -399,28 +373,8 @@ public class Operators
                 EditorUtility.ClearProgressBar();
             }
             var mesh = new Operators().MakeMesh(snowflake);
-            // mesh = new Operators().ShadeAutoSmooth(mesh); 本来は正しい
             if (properties.gameObject && properties.gameObject.GetComponent<MeshFilter>() != null){
                 properties.gameObject.GetComponent<MeshFilter>().mesh = mesh; }
-            
-            if (snowflake.size == size){
-                // data.SetChannel(0, snowflake.a);
-                // data.SetChannel(1, snowflake.b);
-                // data.SetChannel(2, snowflake.c);
-                // data.SetChannel(3, snowflake.d);
-                
-                // properties.data.SetPixels(new Operators().ToColors(Numpy.Ravel<object>(data)));
-                // properties.data.Apply();
-                }
-            else{
-                #if UNITY_EDITOR
-                Debug.Log("SnowflakeGrow.Execute - else");
-                // Object.DestroyImmediate(properties.data);
-                #endif
-                // properties.data = null;
-                // properties.data = new Operators().MakeImage(snowflake);
-            }
-            
             // MyCode
             properties.a = snowflake.a;
             properties.b = snowflake.b;
@@ -428,19 +382,6 @@ public class Operators
             properties.d = snowflake.d;
             properties.rho = snowflake.Params.rho;
             properties.steps += steps;
-
-            // if (!properties.applyAnimation){
-            //     usdFilePath = null;}
-            // try
-            // {
-            //     ApplyUsdMeshCache(usdFilePath, properties);
-            // }
-            // catch (AnimationImportError e)
-            // {
-            //     Debug.LogWarning($"Animation import failed: {e.Message}");
-            // }
-            // if (!string.IsNullOrEmpty(usdFilePath)){
-            //     EditorApplication.delayCall += () => { EditorWindow.GetWindow<AnimationWindow>().time = frame;} ;}
         }
     }
     /// <summary>
