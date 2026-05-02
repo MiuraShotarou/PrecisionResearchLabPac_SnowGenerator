@@ -15,8 +15,8 @@ public class ClimateSettings : MonoBehaviour
     {
         if (Instance == null){
             Instance = this;
-            BurstCompiler.Options.EnableBurstCompilation = true;
-            Application.runInBackground = true;
+            // BurstCompiler.Options.EnableBurstCompilation = true;
+            // Application.runInBackground = true;
         }
         else{
             DestroyImmediate(gameObject);}
@@ -49,11 +49,11 @@ public class ClimateSettings : MonoBehaviour
     // public int CountLimit => (int)(fallAmount * (coverArea.x + coverArea.y + coverArea.z));
     public int CountLimit => fallAmount;
     public ConcurrentQueue<GameObject> SnowflakeQueue = new ConcurrentQueue<GameObject>();
-    /// <summary> AddComponent or SceneLoaded to Once</summary>
-    private void Awake()
-    {
-        // GenerateNewAsync().Forget();
-    }
+    // /// <summary> AddComponent or SceneLoaded to Once</summary>
+    // private void Awake()
+    // {
+    //     // GenerateNewAsync().Forget();
+    // }
     private void Init()
     {
         // foreach (var obj in SnowflakeQueue){
@@ -75,11 +75,12 @@ public class ClimateSettings : MonoBehaviour
             // tasks[i] = GenerateSnowflakeAsync(i);
             await GenerateSnowflakeAsync(i);
         }
-        // await UniTask.WhenAll(tasks);
+        await UniTask.WhenAll(tasks);
         total.Stop();
         Debug.Log($"GenerateNewAsync完了: {total.Elapsed.TotalSeconds}秒");
         // ECSで移動処理
     }
+    /// <summary> 雪の結晶の本実装 </summary>
     private async UniTask GenerateSnowflakeAsync(int i)
     {
         // Mesh生成
@@ -92,9 +93,9 @@ public class ClimateSettings : MonoBehaviour
             var steps = 2000; //
             var calculate = new Calculate(data);
             var simulateMesh = new SimulateMesh(mesh);
-            await calculate.Execute(steps, component.deltaRho, i);
+            await calculate.Execute(steps, component.deltaRho, i); // ← 本堂ハールン Job is this
             data = calculate.GetData;
-            await simulateMesh.Execute(data);
+            await simulateMesh.Execute(data); // ← 本堂ハールン Job is this
             mesh = simulateMesh.GetMesh;
             SaveMesh(mesh);
             component.rho = data.rho;
@@ -119,7 +120,7 @@ public class ClimateSettings : MonoBehaviour
         }
         finally
         {
-            data.Dispose();
+            // data.Dispose(); //ver.JobSystem
         }
     }
     private void SaveMesh(Mesh mesh)

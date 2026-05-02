@@ -51,6 +51,6 @@ copy
 //} NdArray;
 
 static NdArray *
-np_d_arange(double start, double end, size_t itemsize, char order){
+np_d_arange(double start, double end, int itemsize, char order){
 	
 }

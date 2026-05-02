@@ -1,47 +1,11 @@
-#define NPY_NO_DEPRECATED_API NPY_API_VERSION
-#define _MULTIARRAYMODULE
+#include <stdbool.h>
+#include "error.h"
 
-#define PY_SSIZE_T_CLEAN
-#include <Python.h>
-#include <structmember.h>
+sum ◎
+where ✗
+pad ◎
+stack / vstack
 
-#include "numpy/arrayobject.h"
-#include "numpy/arrayscalars.h"
-
-#include "arrayobject.h"
-#include "arrayfunction_override.h"
-#include "npy_argparse.h"
-#include "npy_config.h"
-#include "npy_pycompat.h"
-#include "npy_import.h"
-#include "ufunc_override.h"
-#include "array_coercion.h"
-#include "common.h"
-#include "templ_common.h" /* for npy_mul_sizes_with_overflow */
-#include "ctors.h"
-#include "calculation.h"
-#include "convert_datatype.h"
-#include "descriptor.h"
-#include "dtypemeta.h"
-#include "item_selection.h"
-#include "conversion_utils.h"
-#include "shape.h"
-#include "strfuncs.h"
-#include "array_assign.h"
-#include "npy_dlpack.h"
-#include "npy_static_data.h"
-#include "multiarraymodule.h"
-
-#include "methods.h"
-#include "alloc.h"
-#include "array_api_standard.h"
-
-#include <stdarg.h>
-
-arange
-choice
-np.full
-copy
 //typedef struct {
 //    char    *data;          // 実データへのポインタ
 //    int      nd;            // 次元数
@@ -52,365 +16,313 @@ copy
 
  /*  */
 static NdArray *
-np_zeros(int nd, int64_t *dims, size_t itemsize, char order)//order='C'C言語, 'F'Fotran
+np_zeros(int64_t *size, int size_nd, SDtype sdtype)//order='C'C言語, 'F'Fotran 内部でfullを呼んでも良い
 {
-    NdArray *array = ndarray_create(nd, dims, itemsize);
+    int itemsize = itemsize_cast_by_sdtype(sdtype);
+    
+    NdArray *array = ndarray_create(size_nd, size, itemsize);
     if (array == NULL) {
 		return NULL;
 	}
+    
     return array;
 }
  /*  */
 static NdArray *
-np_ones(int nd, int64_t *dims, size_t itemsize, char order)//order='C'C言語, 'F'Fotran
+np_ones(int64_t *size, int size_nd, SDType sdtype)//order='C'C言語, 'F'Fotran
 {
-    NdArray *array = ndarray_create(nd, dims, itemsize);
-    if (array == NULL) {
-		return NULL;
-	}
+    double value = 1.0;
+    NdArray *array = np_full(size, size_nd, value, sdtype);
+    return array;
+}
 
-	int64_t total = 1;
-    for (int i = 0; i < nd; i++) {
-        total *= dims[i];
+/*  */
+static NdArray *
+np_full(int64_t *size, int size_nd, double value, SDType sdtype, char order)
+{
+    int itemsize = itemsize_cast_by_sdtype(sdtype);
+    
+    NdArray *array = ndarray_create(size_nd, size, itemsize);
+    
+    int64_t total = 1;
+    for (int i = 0; i < size_nd; i++) {
+        total *= size[i];
     }
-    if (itemsize == sizeof(double)) {
-        double *p = (double *)array->data;
-        double *end = p + total;
-        while (p < end) {
-            *p++ = 1.0;
-        }
-    }
-    else if (itemsize == sizeof(float)) {
-        float *p = (float *)array->data;
-        float *end = p + total;
-        while (p < end) {
-            *p++ = 1.0f;
-        }
-    }
-    else if (itemsize == sizeof(int32_t)) {
-        int32_t *p = (int32_t *)array->data;
-        int32_t *end = p + total;
-        while (p < end) {
-            *p++ = 1;
-        }
+    
+    DScalarCast cast = dscalar_cast_by_sdtype[sdtype];
+    
+    for (int64_t i = 0; i < total; i++) {
+        cast(array->data + i * itemsize, value);
     }
     return array;
 }
+
 // エラー条件を検出する必要
 /*  */
 static NdArray *
-np_arange(int start, int end, int step, SDType sdtype, char order){
+np_arange(int start, int end, int step, SDType sdtype, char order)
+{
 	int nd = 1;
 	int64_t dimensions[1] = {(end - start) / step};
-	int64_t *dims = dimensions;
+    int itemsize = itemsize_cast_by_sdtype(sdtype);
+    if (itemsize == -1) {
+        return NULL;
+    }
 
-	NdArray *array = ndarray_create(nd, dims, itemsize);
+	NdArray *array = ndarray_create(nd, dimensions, itemsize);
     if (array == NULL) {
 		return NULL;
 	}
-
+    
+    DoubleScalarCast doublescalarcast = doublescalar_cast_by_sdtype[sdtype];
+    if (doublescalarcast == NULL) {
+        return NULL;
+    }
 	for (int i = 0; i < dimensions[0]; i++) {
-		double value = start + i * step; //型をitemsizeに合わせる必要り
-        memcpy(array->data + i * itemsize, &value, itemsize);
+		double value = (double)(start + i * step); //型をitemsizeに合わせる必要あり
+        doublescalarcast(array->data + i * itemsize, value);
 	}
+    
+    return array;
 }
 
-// 使い終わったら必ずこれで解放する
-static void
-np_free(NdArray *arr)
+/* */ //スカラーは実装しない（System.Random.Rangeがあるため）
+static NdArray *
+np_random_choice(NdArray *src, int64_t *size, int size_nd, bool replace, float *p, int p_len, SDType sdtype) //IntPtr src, long[] size, int size_length, bool replace, float[] p, int p_length, SDType sdtype
 {
-    if (arr != NULL) {
-        free(arr->data);
-        free(arr);
+    /* 総要素数を計算 */
+    size_t src_n = 1;
+    for (int i = 0; i < src->nd; i++) {
+        src_n *= (size_t)src->dimensions[i];
     }
-}
 
-PyArray_Zeros(int nd, npy_intp const *dims, PyArray_Descr *type, int is_f_order)//次元数, 各次元配列へのポインタ, データ型, 行優先か列優先か
-{
-    npy_dtype_info dt_info = {NULL, NULL};
+    /* 出力配列の総要素数を計算 */
+    size_t res_n = 1;
+    for (int i = 0; i < size_nd; i++) {
+        res_n *= (size_t)size[i];
+    }
 
-    int res = PyArray_ExtractDTypeAndDescriptor(
-        type, &dt_info.descr, &dt_info.dtype);
-
-    // steal reference
-    Py_XDECREF(type);
-
-    if (res < 0) {
-        Py_XDECREF(dt_info.descr);
-        Py_XDECREF(dt_info.dtype);
+    /* 出力配列を作成 */
+    int itemsize = itemsize_cast_by_sdtype(sdtype);
+    if (itemsize == -1) {
         return NULL;
     }
 
-    PyObject *ret = PyArray_Zeros_int(nd, dims, dt_info.descr, dt_info.dtype,
-                                      is_f_order);
+    NdArray *result = ndarray_create(size_nd, size, itemsize);
+    if (result == NULL) {
+        return NULL;
+    }
 
-    Py_XDECREF(dt_info.descr);
-    Py_XDECREF(dt_info.dtype);
+    /* 重複なし（replace=false）の場合、res_n <= src_n であること */ //構造的に不可な場合
+    if (!replace && res_n > src_n) {
+        ndarray_free(result);
+        SET_ERROR_MESSAGE("np_random_choice: Cannot take a larger sample than population when replace=false.");
+        return NULL;
+    }
 
-    return ret;
-}
-
-NPY_NO_EXPORT PyObject *
-PyArray_Zeros_int(int nd, npy_intp const *dims, PyArray_Descr *descr,
-                  PyArray_DTypeMeta *dtype, int is_f_order)
-{
-    PyObject *ret = NULL;
-
-    if (descr == NULL) {
-        descr = _infer_descr_from_dtype(dtype);
-        if (descr == NULL) {
+    /* インデックスプール（重複なしの場合に使用） */
+    size_t *pool = NULL;
+    if (!replace) {
+        pool = (size_t *)malloc(sizeof(size_t) * src_n);
+        if (pool == NULL) {
+            ndarray_free(result);
             return NULL;
         }
+        for (size_t i = 0; i < src_n; i++) pool[i] = i;
     }
-    /*
-     * PyArray_NewFromDescr_int steals a ref to descr,
-     * incref so caller of this function can clean up descr
-     */
-    Py_INCREF(descr);
-    ret = PyArray_NewFromDescr_int(
-            &PyArray_Type, descr,
-            nd, dims, NULL, NULL,
-            is_f_order, NULL, NULL,
-            _NPY_ARRAY_ZEROED);
 
-    return ret;
+    /* 各要素をランダムに選択してコピー */
+    for (size_t i = 0; i < res_n; i++) {
+        size_t idx;
+
+        if (p != NULL) {
+            /* 確率指定あり（replace関係なく確率で選択） */
+            float rnd = (float)rand() / (float)RAND_MAX;
+            float cumsum = 0.0f;
+            idx = src_n - 1;
+            for (size_t j = 0; j < src_n; j++) {
+                cumsum += p[j];
+                if (rnd <= cumsum) {
+                    idx = j;
+                    break;
+                }
+            }
+        } else {
+            /* 均等確率 */
+            idx = (size_t)rand() % src_n;
+        }
+
+        if (!replace) {
+            /* 重複なし：選択済みインデックスをプールから除外 */
+            // poolを使ってidxをスワップ
+            idx = pool[idx % (src_n - i)];
+            pool[idx] = pool[src_n - i - 1];
+        }
+
+        memcpy(
+            result->data + i * itemsize,
+            src->data + idx * src->itemsize,
+            itemsize
+        );
+    }
+    if (pool != NULL) free(pool);
+    return result;
 }
 
-
-
-/* NpyArg_ParseKeywords
- *
- * Utility function that provides the keyword parsing functionality of
- * PyArg_ParseTupleAndKeywords without having to have an args argument.
- *
- */
-
-PyArray_View() //戻り値PyObject*
-PyArray_NewCopy()
-
-//要素数をチェック
-//メモリ連続性チェック
-//strides計算
-//return
-
-// 戻り値: PyObject*（ndarray）。reshapeした配列、またはビューを返す
-// array: reshape対象のndarray
-// newdims: 新しい形状情報（ptr=各次元サイズの配列、len=次元数）
-// order: メモリレイアウト順序（C順/Fortran順）
-// copy: コピーの挙動（常にコピー/必要時のみ/コピー禁止）
-NPY_NO_EXPORT PyObject *
-_reshape_with_copy_arg(PyArrayObject *array, PyArray_Dims *newdims,
-                       NPY_ORDER order, NPY_COPYMODE copy)
+static double
+np_sum_return_scalar(NdArray *src, SDType srctype)
 {
-    int64_t i;
-    int64_t *dimensions = newdims->ptr; // 新しい形状の各次元サイズへのポインタ
-    PyArrayObject *ret;                 // 戻り値となるndarray
-    int ndim = newdims->len;            // 新しい次元数
-    bool same;                          // 形状が同じかどうかのフラグ
-    int64_t *strides = NULL;            // ストライド（NULL=自動計算）
-    int64_t newstrides[NPY_MAXDIMS];    // コピーなしreshape時の新ストライド格納用
-    int flags;                          // 配列フラグ（C連続/Fortran連続など）
+    NdArray *cast_array = np_ndarray_cast(src, srctype, Double);
+    if (cast_array == NULL) {
+        SET_ERROR_MESSAGE("");
+        return 0.0;
+    };
 
-    // ANYORDERの場合、元配列がFortran順ならFortran順、そうでなければC順に決定
-    if (order == NPY_ANYORDER) {
-        order = PyArray_ISFORTRAN(array) ? NPY_FORTRANORDER : NPY_CORDER;
-    }
-    // KEEPORDER（元のレイアウトを維持）はreshapeでは使用不可
-    else if (order == NPY_KEEPORDER) {
-        PyErr_SetString(PyExc_ValueError,
-                "order 'K' is not permitted for reshaping");
-        return NULL;
+    int64_t total = get_totalelements(cast_array->dimensions, cast_array->nd);
+    double result = 0.0;
+    double *data = (double *)cast_array->data;
+
+    for (int64_t i = 0; i < total; i++) {
+        result += data[i];
     }
 
-    // 常にコピーが不要で、かつ次元数が同じ場合は形状の一致を確認する
-    if (ndim == PyArray_NDIM(array) && copy != NPY_COPY_ALWAYS) {
-        same = NPY_TRUE;
-        i = 0;
-        // 各次元のサイズを比較し、一つでも違えばsame=falseにする
-        while (same && i < ndim) {
-            if (PyArray_DIM(array, i) != dimensions[i]) {
-                same = NPY_FALSE;
-            }
-            i++;
-        }
-        // 形状が完全に同じならコピー不要のビューをそのまま返す
-        if (same) {
-            return PyArray_View(array, NULL, NULL); //View → 配列の一部分を指定可能な参照型。C#だとSpan<T>で実現可能
-        }
-    }
+    ndarray_free(cast_array);
+    return result;
+}
 
-    // -1で指定された次元（自動計算）を実際のサイズに解決し、
-    // 総要素数が一致するかチェックする
-    if (_fix_unknown_dimension(newdims, array) < 0) {
-        return NULL;
-    }
+static NdArray *
+np_sum_return_array(NdArray *src, SDType srctype, SDType restype, int32_t axis, bool keepdims)
+{
+    /* conditions scalar */
+    if (axis == -1) {
+        double scalar = np_sum_return_scalar(src, srctype);
 
-    // NPY_COPY_ALWAYSの場合は指定のorder順で必ず新しいコピーを作成する
-    if (copy == NPY_COPY_ALWAYS) {
-        PyObject *newcopy = PyArray_NewCopy(array, order);
-        if (newcopy == NULL) {
+        int64_t dims[1] = { 1 };
+        NdArray* result = np_full(dims, 1, scalar, restype, 'C');
+        if (result == NULL) {
+            SET_ERROR_MESSAGE("");
             return NULL;
         }
-        array = (PyArrayObject *)newcopy; // 以降はコピーを操作対象とする
+        
+        return result;
     }
-    else {
-        // 参照カウントを増やして配列を保持する（後でDECREFする）
-        Py_INCREF(array);
-
-        // 要求されたorder順と元配列のメモリレイアウトが一致しない場合
-        if (((order == NPY_CORDER && !PyArray_IS_C_CONTIGUOUS(array)) ||
-                (order == NPY_FORTRANORDER && !PyArray_IS_F_CONTIGUOUS(array)))) {
-
-            int success = 0;
-            // コピーなしでreshapeできるか試みる（ストライドの調整で対応可能か）
-            success = _attempt_nocopy_reshape(array, ndim, dimensions,
-                                              newstrides, order); //bool を返す
-            if (success) {
-                // コピー不要でreshapeできた場合は新ストライドを使用する
-                strides = newstrides;
+    
+    /* create cast_array */
+    NdArray *cast_array = np_ndarray_cast(src, srctype, Double);
+    if (cast_array == NULL) {
+        SET_ERROR_MESSAGE("");
+        return NULL;
+    };
+    
+    /* conditions error */
+    if (axis < 0 || axis >= cast_array->nd) {
+        SET_ERROR_MESSAGE_ARGUMENT("np_sum_return_array: axis %d is out of range.", axis);
+        ndarray_free(cast_array);
+        return NULL;
+    }
+    
+    /* copy dimensions */
+    int res_nd = keepdims ? cast_array->nd : cast_array->nd - 1;
+    int64_t res_dims[64];
+    int res_idx = 0;
+    for (int i = 0; i < cast_array->nd; i++) { //nd == 4, axis == 1
+        if (i == axis) {
+            if (keepdims) //次元を保持するなら
+            {
+                res_dims[res_idx++] = 1; //dimensionsの要素ではなく、1を代入する。axisに該当する次元の要素数を1にする
             }
-            else if (copy == NPY_COPY_NEVER) {
-                // コピー禁止なのにコピーが必要な状況 → エラー
-                PyErr_SetString(PyExc_ValueError,
-                                "Unable to avoid creating a copy while reshaping.");
-                Py_DECREF(array);
-                return NULL;
-            }
-            else {
-                // コピーが必要な場合は指定order順でコピーを作成する
-                PyObject *newcopy = PyArray_NewCopy(array, order);
-                Py_DECREF(array); // 元の参照を解放
-                if (newcopy == NULL) {
-                    return NULL;
-                }
-                array = (PyArrayObject *)newcopy;
-            }
+        } else {
+            res_dims[res_idx++] = cast_array->dimensions[i]; //cast_array->dimensionsの各要素をres_dimsにコピー
         }
     }
-
-    // 配列フラグを取得し、次元数と順序に応じてC連続/Fortran連続フラグを更新する
-    flags = PyArray_FLAGS(array);
-    if (ndim > 1) {
-        if (order == NPY_FORTRANORDER) {
-            flags &= ~NPY_ARRAY_C_CONTIGUOUS;   // C連続フラグを落とす
-            flags |= NPY_ARRAY_F_CONTIGUOUS;    // Fortran連続フラグを立てる
-        }
-        else {
-            flags &= ~NPY_ARRAY_F_CONTIGUOUS;   // Fortran連続フラグを落とす
-            flags |= NPY_ARRAY_C_CONTIGUOUS;    // C連続フラグを立てる
+    
+    int itemsize = itemsize_cast_by_sdtype(restype);
+    if (itemsize == -1) {
+        ndarray_free(cast_array);
+        return NULL;
+    }
+    
+    NdArray *result = ndarray_create(res_nd, res_dims, itemsize);
+    if (result == NULL) {
+        ndarray_free(cast_array);
+        return NULL;
+    }
+    
+    /* azis方向に計算 */
+    int64_t outer = 1, inner = 1;
+    for (int i = 0; i < axis; i++) { // dims(2, 4, 3), axis == 1
+        outer *= cast_array->dimensions[i];
+    }
+    for (int i = axis + 1; i < cast_array->nd; i++) {
+        inner *= cast_array->dimensions[i];
+    }
+    int64_t axis_len = cast_array->dimensions[axis];
+    
+    double *src_data = (double *)cast_array->data;
+    DScalarCast cast = dscalar_cast_by_sdtype[restype];
+    if (cast == NULL) {
+        SET_ERROR_MESSAGE("");
+        ndarray_free(cast_array);
+        ndarray_free(result);
+        return NULL;
+    }
+    
+    for (int64_t o = 0; o < outer; o++) {
+        for (int64_t in = 0; in < inner; in++) {
+            double sum = 0.0;
+            for (int64_t a = 0; a < axis_len; a++) {
+                sum += src_data[o * axis_len * inner + a * inner + in];
+            }
+            cast(result->data + (o * inner + in) * itemsize, sum);
         }
     }
-
-    // dtypeの参照カウントを増やしてから新しいndarrayを生成する
-    // 既存のデータバッファ（PyArray_DATA(array)）をそのまま共有する形で作成
-    Py_INCREF(PyArray_DESCR(array));
-    ret = (PyArrayObject *)PyArray_NewFromDescr_int(
-            Py_TYPE(array),         // 元と同じ型（サブクラス対応）
-            PyArray_DESCR(array),   // 元と同じdtype
-            ndim,                   // 新しい次元数
-            dimensions,             // 新しい各次元サイズ
-            strides,                // ストライド（NULLなら自動計算）
-            PyArray_DATA(array),    // 元配列のデータバッファを共有
-            flags,                  // 更新済みフラグ
-            (PyObject *)array,      // 元のPythonオブジェクト
-            (PyObject *)array,      // baseオブジェクト（メモリ所有者）
-            _NPY_ARRAY_ENSURE_DTYPE_IDENTITY); // dtype同一性を保証するフラグ
-
-    Py_DECREF(array); // 参照カウントを戻す
-    return (PyObject *)ret;
+    
+    ndarray_free(cast_array);
+    return result;
 }
-//
-static int
-_attempt_nocopy_reshape(PyArrayObject *self, int newnd, const npy_intp *newdims,
-                        npy_intp *newstrides, int is_f_order)
+
+static NdArray*
+np_pad(NdArray *src, int32_t pad_width, PadModeType mode, double value, SDType restype)
 {
-    int oldnd;
-    npy_intp olddims[NPY_MAXDIMS];
-    npy_intp oldstrides[NPY_MAXDIMS];
-    npy_intp last_stride;
-    int oi, oj, ok, ni, nj, nk;
-
-    oldnd = 0;
-    /*
-     * Remove axes with dimension 1 from the old array. They have no effect
-     * but would need special cases since their strides do not matter.
-     */
-    for (oi = 0; oi < PyArray_NDIM(self); oi++) {
-        if (PyArray_DIMS(self)[oi]!= 1) {
-            olddims[oldnd] = PyArray_DIMS(self)[oi];
-            oldstrides[oldnd] = PyArray_STRIDES(self)[oi];
-            oldnd++;
-        }
+    if (src == NULL) {
+        SET_ERROR_MESSAGE("np_pad: src is NULL.");
+        return NULL;
     }
 
-    /* oi to oj and ni to nj give the axis ranges currently worked with */
-    oi = 0;
-    oj = 1;
-    ni = 0;
-    nj = 1;
-    while (ni < newnd && oi < oldnd) {
-        npy_intp np = newdims[ni];
-        npy_intp op = olddims[oi];
+    /* 出力配列の形状を計算 */
+    int src_nd = src->nd;
+    int64_t res_dims[64];
+    for (int i = 0; i < src_nd; i++) {
+        res_dims[i] = src->dimensions[i] + (int64_t)pad_width * 2; //加算のみで良いのか？
+    }
 
-        while (np != op) {
-            if (np < op) {
-                /* Misses trailing 1s, these are handled later */
-                np *= newdims[nj++];
-            } else {
-                op *= olddims[oj++];
-            }
+    /* 出力配列を生成 */
+    NdArray *result = np_full(res_dims, src_nd, value, restype); //最初からfullとかで良い気がする long[] size, int size_nd, double value, SDType sdtype
+    if (result == NULL) {
+        SET_ERROR_MESSAGE("np_pad: ndarray_create failed.");
+        return NULL;
+    }
+    
+    int64_t src_total = get_totalelements(src->dimensions, src_nd);
+    for (int64_t idx = 0; idx < src_total; idx++) {
+        /* src のフラットインデックスから各次元のインデックスを計算 */
+        int64_t res_idx = 0;
+        int64_t tmp = idx;
+        int64_t stride = 1;
+
+        for (int d = src_nd - 1; d >= 0; d--) {
+            int64_t dim_idx = tmp % src->dimensions[d];  // d次元のインデックス
+            tmp /= src->dimensions[d];
+            res_idx += (dim_idx + pad_width) * stride;
+            stride *= res_dims[d];
         }
 
-        /* Check whether the original axes can be combined */
-        for (ok = oi; ok < oj - 1; ok++) {
-            if (is_f_order) {
-                if (oldstrides[ok+1] != olddims[ok]*oldstrides[ok]) {
-                     /* not contiguous enough */
-                    return 0;
-                }
-            }
-            else {
-                /* C order */
-                if (oldstrides[ok] != olddims[ok+1]*oldstrides[ok+1]) {
-                    /* not contiguous enough */
-                    return 0;
-                }
-            }
-        }
-
-        /* Calculate new strides for all axes currently worked with */
-        if (is_f_order) {
-            newstrides[ni] = oldstrides[oi];
-            for (nk = ni + 1; nk < nj; nk++) {
-                newstrides[nk] = newstrides[nk - 1]*newdims[nk - 1];
-            }
-        }
-        else {
-            /* C order */
-            newstrides[nj - 1] = oldstrides[oj - 1];
-            for (nk = nj - 1; nk > ni; nk--) {
-                newstrides[nk - 1] = newstrides[nk]*newdims[nk];
-            }
-        }
-        ni = nj++;
-        oi = oj++;
+        memcpy(
+            result->data + res_idx * src->itemsize,
+            src->data    + idx    * src->itemsize,
+            src->itemsize
+        );
     }
 
-    /*
-     * Set strides corresponding to trailing 1s of the new shape.
-     */
-    if (ni >= 1) {
-        last_stride = newstrides[ni - 1];
-    }
-    else {
-        last_stride = PyArray_ITEMSIZE(self);
-    }
-    if (is_f_order) {
-        last_stride *= newdims[ni - 1];
-    }
-    for (nk = ni; nk < newnd; nk++) {
-        newstrides[nk] = last_stride;
-    }
-
-    return 1;
+    return result;
 }

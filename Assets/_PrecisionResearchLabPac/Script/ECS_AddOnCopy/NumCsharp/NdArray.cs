@@ -1,0 +1,347 @@
+using System;
+using System.Linq;
+using System.Runtime.InteropServices;
+using Unity.Entities;
+using UnityEngine;
+using UnityEngine.Pool;
+
+/// <summary> _pointer のnullチェックを忘れずに記述すること </summary>
+/// <summary> メソッドの第一引数にthisを付与すること </summary>
+/// <summary> NdArrayを返すメソッドは破壊的操作なのか新規作成操作なのかを考慮して設計すること </summary>
+/// <summary> overflow対策は一旦しなくて良い </summary>
+namespace SnowflakeNative
+{
+    /// <summary> Collection is NdArray </summary>
+    public class NdArray<T> : CSLanguageNative where T : unmanaged
+    {
+        private IntPtr _pointer; //DisPoseを実装すべき
+        /// <summary> for client method </summary>
+        public NdArray(long[] dimensions, char order = 'C')
+        {
+            int nd = dimensions.Length;
+            int itemsize = Marshal.SizeOf(typeof(T));
+            _pointer = ndarray_create(nd, dimensions, itemsize, order);
+
+            if (_pointer == IntPtr.Zero)
+            {
+                throw new InvalidOperationException("ndarray_create failed.");
+            }
+        }
+
+        /// <summary> client dispose </summary>
+        public static void Dispose(NdArray<T> src) => CSDispose(src._pointer);
+
+        /// <summary> for developer method </summary>
+        private NdArray()
+        {
+            _pointer = IntPtr.Zero;
+        }
+        private static NdArray<T> Packing<T>(NdArray<T> src, IntPtr pointer) where T : unmanaged
+        {
+            src._pointer = pointer;
+            return src;
+        }
+
+        /// <summary> NdArrayCopy </summary>
+        public static NdArray<TSource> NdArrayCopy<TSource>(NdArray<TSource> src) where TSource : unmanaged => Packing(src, CSCopy(src._pointer)); //※コンストラクタと機能被り可能性
+        /// <summary> Zeros </summary>
+        public static NdArray<TResult> Zeros<TResult>(long[] size, double value) where TResult : unmanaged =>  Packing<TResult>(new NdArray<TResult>(), CSZeros<TResult>(size, value));
+        /// <summary> Ones </summary>
+        public static NdArray<TResult> Ones<TResult>(long[] size, double value) where TResult : unmanaged =>  Packing<TResult>(new NdArray<TResult>(), CSOnes<TResult>(size, value));
+        /// <summary> Full </summary>
+        public static NdArray<TResult> Full<TResult>(long[] size, double value) where TResult : unmanaged =>  Packing<TResult>(new NdArray<TResult>(), CSFull<TResult>(size, value));
+        /// <summary> Arange </summary>
+        public static NdArray<TResult> Arange<TResult>(int end, char order) where TResult : unmanaged => Packing<TResult>(new NdArray<TResult>(), CSArange<TResult>(0, end, 1, order));
+        public static NdArray<TResult> Arange<TResult>(int start, int end, char order) where TResult : unmanaged => Packing<TResult>(new NdArray<TResult>(), CSArange<TResult>(start, end, 1, order));
+        public static NdArray<TResult> Arange<TResult>(int start, int end, int step, char order) where TResult : unmanaged => Packing<TResult>(new NdArray<TResult>(), CSArange<TResult>(start, end, step, order));
+        /// <summary> DArange </summary>
+        public static NdArray<TResult> DArange<TResult>(double start, double end, double step, char order) where TResult : unmanaged => Packing<TResult>(new NdArray<TResult>(), CSDArange<TResult>(start, end, step, order));
+        /// <summary> RandomChoice </summary>
+        public static NdArray<TResult> RandomChoice<TResult>(NdArray<TResult> src, long[] size, bool replace = true, float[] p = null) where TResult : unmanaged => Packing<TResult>(new NdArray<TResult>(), CSRandomChoice<TResult>(src._pointer, size, replace, p));
+        
+        /// <summary> Reshape </summary>
+        public static NdArray<TResult> Reshape<TResult>(NdArray<TResult> src, long[] size) where TResult : unmanaged => Packing(src, CSReshape(src._pointer, size));
+        /// <summary> Where 相性が悪いのでパス </summary>
+        
+        /// <summary> Sum </summary>
+        public static NdArray<TResult> Sum<TSource, TResult>(NdArray<TSource> src, int axis = -1, bool keepdims = false) where TSource : unmanaged where TResult : unmanaged => Packing<TResult>(new NdArray<TResult>(), CSSum<TSource, TResult>(src._pointer, axis, keepdims));
+        public static TResult Sum<TSource, TResult>(NdArray<TSource> src) where TSource : unmanaged where TResult : unmanaged => CSSum<TSource, TResult>(src._pointer);
+        
+        /// <summary> Cast </summary>
+        public static NdArray<TResult> Cast<TSource, TResult>(NdArray<TSource> src) where TSource : unmanaged where TResult : unmanaged => Packing<TResult>(new NdArray<TResult>(), CSArrayCast<TSource, TResult>(src._pointer));
+
+        /// <summary> Pad </summary>
+        public static NdArray<TResult> Pad<TResult>(NdArray<TResult> src, int pad_wdith, PadModeType mode, double value) where TResult : unmanaged => Packing<TResult>(new NdArray<TResult>(), CSPad<TResult>(src._pointer, pad_wdith, mode, value));
+        /// <summary> Stack </summary> //引数に受け取る型をユーザー側で統一してもらう仕様にする。
+        public static NdArray<TResult> Stack<TResult>(NdArray<TResult>[] srcArray, uint axis = 0) where TResult : unmanaged => Packing(new NdArray<TResult>(), CSStack<TResult>(srcArray.Select(arr => arr._pointer).ToArray(), axis));
+        public static NdArray<TResult> VStack<TResult>(NdArray<TResult>[] srcArray, int axis = -1) where TResult : unmanaged => Packing(new NdArray<TResult>(), CSVStack<TResult>(srcArray.Select(arr => arr._pointer).ToArray(), srcArray.Length, axis = -1));
+    }
+    
+    /// <summary> Have CSharp Relay Method </summary>
+    public abstract class CSLanguageNative : CLanguageNative
+    {
+        /// <summary> dispose </summary>
+        protected static void CSDispose(IntPtr pointer)
+        {
+            ndarray_free(pointer);
+            pointer = IntPtr.Zero;
+        }
+        
+        // 引数, 戻り値に NdArray<T>の使用を禁止
+        protected static IntPtr CSCopy(IntPtr pointer) => ndarray_copy(pointer);
+        protected static IntPtr CSFull<TResult>(long[] size, double value) where TResult : unmanaged
+        {
+            SDType restype = GenericsToSDType<TResult>();
+            int size_nd = size.Length;
+            IntPtr result = np_full(size, size_nd, value, restype);
+            if (result == IntPtr.Zero) {
+                throw new InvalidOperationException(GetErrorMessage());
+            }
+            return result;
+        }
+        protected static IntPtr CSArange<TResult>(int start, int end, int step, char order) where TResult : unmanaged
+        {
+            SDType resType = GenericsToSDType<TResult>();
+            return np_arange(start, end, step, resType, order); //orderはC言語で処理するかFortranで処するかを指定する
+        }
+        protected static IntPtr CSArrayCast<TSource, TResult>(IntPtr pointer) where TSource : unmanaged where TResult : unmanaged
+        {
+            SDType srcType = GenericsToSDType<TSource>();
+            SDType resType = GenericsToSDType<TResult>();
+            // pointerをC言語側へ渡す
+            IntPtr result = np_ndarray_cast(pointer, srcType, resType); //SDTypeでどのメソッドを呼び出すのか決めている。+ Source元の配列のポインタから具体的な型のついたポインタに変換する必要がある。それを、C言語側で行う。C#側のNdArrayは用意しなくて良い。
+            if (result == IntPtr.Zero) {
+                throw new InvalidOperationException(GetErrorMessage());
+            }
+            return result;
+        }
+        protected static IntPtr CSRandomChoice<TResult>(IntPtr pointer, long[] size, bool replace, float[] p) where TResult : unmanaged
+        {
+            SDType resType = GenericsToSDType<TResult>();
+            int size_nd = size.Length, p_nd = p?.Length ?? 0;
+            return np_random_choice(pointer, size, size_nd, replace, p, p_nd, resType);
+        }
+        /// <summary>  </summary>
+        protected static IntPtr CSPad<TResult>(IntPtr pointer, int pad_wdith, PadModeType mode = PadModeType.Constant, double value = 0d) where TResult : unmanaged
+        {
+            SDType resType = GenericsToSDType<TResult>();
+            return np_pad(pointer, pad_wdith, mode, value, resType);
+        }
+
+        protected static IntPtr CSConcatenate<TResult>(IntPtr[] pointerArray, uint axis = 0) where TResult : unmanaged
+        {
+            SDType resType = GenericsToSDType<TResult>();
+            return np_concatenate(pointerArray, axis, resType);
+        }
+        /// <summary> 配列Aに新しい次元として配列Bを追加し、新規配列として返す </summary>
+        protected static IntPtr CSStack<TResult>(IntPtr[] pointerArray, uint axis = 0) where TResult : unmanaged
+        {
+            SDType resType = GenericsToSDType<TResult>();
+            int pointerCount = pointerArray.Length;
+            return np_stack(pointerArray, pointerCount, axis, resType); //形状チェックはC言語側で行う
+        }
+
+        /// <summary> 配列を縦方向に順番に積み重ねる </summary>
+        protected static IntPtr CSVstack<TResult>(IntPtr[] pointerArray, int axis = -1) where TResult : unmanaged
+        {
+            SDType resType = GenericsToSDType<TResult>();
+            // 形状 N の1次元配列を(1, N)に再形成した後、最初の軸に沿って連結することと同等。
+            // [3,] + [3,] → [2, 3]
+            // [3, 1] + [3, 1] → [6, 1]
+        }
+        /// <summary> 配列での受け取り </summary>
+        protected static IntPtr CSSum<TSource, TResult>(IntPtr pointer, int axis = -1, bool keepdims = false) where TSource : unmanaged where TResult : unmanaged
+        {
+            SDType srcType = GenericsToSDType<TSource>();
+            SDType resType = GenericsToSDType<TResult>();
+            return np_sum_return_array(pointer, srcType, resType, axis, keepdims);
+        }
+        /// <summary> スカラーでの受け取り </summary>
+        protected static TResult CSSum<TSource, TResult>(IntPtr pointer) where TSource : unmanaged where TResult : unmanaged
+        {
+            SDType srcType = GenericsToSDType<TSource>();
+            double result = np_sum_return_scalar(pointer, srcType);
+            return (TResult)Convert.ChangeType(result, typeof(TResult));
+        }
+        protected static IntPtr CSReshape(IntPtr pointer, long[] size)
+        {
+            int size_nd = size.Length;
+            return np_reshape(pointer, size, size_nd);
+        }
+        
+        /// <summary> 便利系 </summary>
+        private static SDType GenericsToSDType<T>() where T : unmanaged
+        {
+            SDType resType;
+            switch (typeof(T))
+            {
+                //引数の型
+                case Type t when t == typeof(bool): resType = SDType.Bool; break;
+                case Type t when t == typeof(sbyte): resType = SDType.SByte; break;
+                case Type t when t == typeof(byte): resType = SDType.Byte; break;
+                case Type t when t == typeof(short): resType = SDType.Short; break;
+                case Type t when t == typeof(ushort): resType = SDType.UShort; break;
+                case Type t when t == typeof(int): resType = SDType.Int; break;
+                case Type t when t == typeof(uint): resType = SDType.UInt; break;
+                case Type t when t == typeof(long): resType = SDType.Long; break;
+                case Type t when t == typeof(ulong): resType = SDType.ULong; break;
+                case Type t when t == typeof(float): resType = SDType.Float; break;
+                case Type t when t == typeof(double): resType = SDType.Double; break;
+                default: throw new NotSupportedException($"Unsupported type: {typeof(T)}");
+            }
+            return resType;
+        }
+
+        /// <summary> エラー </summary>
+        private static string GetErrorMessage() => Marshal.PtrToStringAnsi(get_error_message()) ?? "unknown error.";
+    }
+
+    /// <summary> Native Code for NdArray </summary>
+    public abstract class CLanguageNative
+    {
+        private const string DLL_Name = "CLanguageNative";
+
+        // ----------------------------------------------------------------
+        // 生成系
+        // ----------------------------------------------------------------
+        /// <summary> NdArrayCreate </summary>
+        [DllImport(DLL_Name, CallingConvention = CallingConvention.Cdecl)]
+        protected static extern IntPtr ndarray_create(int nd, long[] dimensions, int itemsize, char order);
+        /// <summary> NdArrayCopy </summary>
+        [DllImport(DLL_Name, CallingConvention = CallingConvention.Cdecl)]
+        protected static extern IntPtr ndarray_copy(IntPtr src);
+        /// <summary> Zeros </summary>
+        [DllImport(DLL_Name, CallingConvention = CallingConvention.Cdecl)]
+        protected static extern IntPtr np_zeros(long[] size, int size_nd, SDType sdtype);
+        /// <summary> Ones </summary>
+        [DllImport(DLL_Name, CallingConvention = CallingConvention.Cdecl)]
+        protected static extern IntPtr np_ones(long[] size, int size_nd, SDType sdtype);
+        /// <summary> Full </summary>
+        [DllImport(DLL_Name, CallingConvention = CallingConvention.Cdecl)]
+        protected static extern IntPtr np_full(long[] size, int size_nd, double value, SDType sdtype);
+        /// <summary> Empty </summary>
+        [DllImport(DLL_Name, CallingConvention = CallingConvention.Cdecl)]
+        protected static extern IntPtr np_empty(long[] size, int size_nd, SDType sdtype);
+        /// <summary> Arange </summary>
+        [DllImport(DLL_Name, CallingConvention = CallingConvention.Cdecl)]
+        protected static extern IntPtr np_arange(int start, int end, int step, SDType sdType, char order);
+        /// <summary> DArange </summary>
+        [DllImport(DLL_Name, CallingConvention = CallingConvention.Cdecl)]
+        protected static extern IntPtr np_d_arange(double start, double end, double step, SDType sdtype, char order);
+        /// <summary> Indices </summary>
+        [DllImport(DLL_Name, CallingConvention = CallingConvention.Cdecl)]
+        protected static extern IntPtr np_indices(long[] shape, int shape_nd, SDType sdtype);
+
+        // ----------------------------------------------------------------
+        // 形状変換系
+        // ----------------------------------------------------------------
+        /// <summary> Reshape </summary>
+        [DllImport(DLL_Name, CallingConvention = CallingConvention.Cdecl)]
+        protected static extern IntPtr np_reshape(IntPtr src, long[] size, int size_nd);
+        /// <summary> Resize </summary>
+        [DllImport(DLL_Name, CallingConvention = CallingConvention.Cdecl)]
+        protected static extern IntPtr np_resize(IntPtr src, long[] new_dims, int new_nd);
+        /// <summary> Ravel（1次元に平坦化） </summary>
+        [DllImport(DLL_Name, CallingConvention = CallingConvention.Cdecl)]
+        protected static extern IntPtr np_ravel(IntPtr src);
+        /// <summary> Squeeze </summary>
+        [DllImport(DLL_Name, CallingConvention = CallingConvention.Cdecl)]
+        protected static extern IntPtr np_squeeze(IntPtr src);
+        /// <summary> Transpose </summary>
+        [DllImport(DLL_Name, CallingConvention = CallingConvention.Cdecl)]
+        protected static extern IntPtr np_transpose(IntPtr src);
+        /// <summary> Pad </summary>
+        [DllImport(DLL_Name, CallingConvention = CallingConvention.Cdecl)]
+        protected static extern IntPtr np_pad(IntPtr src, int pad_width, PadModeType mode, double value, SDType sdtype);
+        /// <summary> Concatenate </summary>
+        protected static extern IntPtr np_concatenate(IntPtr[] arrays, uint axis, SDType sdtype);
+        /// <summary> Stack </summary>
+        [DllImport(DLL_Name, CallingConvention = CallingConvention.Cdecl)]
+        protected static extern IntPtr np_stack(IntPtr[] arrays, int array_count, uint axis, SDType sdtype);
+        /// <summary> VStack </summary>
+        [DllImport(DLL_Name, CallingConvention = CallingConvention.Cdecl)]
+        protected static extern IntPtr np_vstack(IntPtr[] arrays, int array_count, SDType sdtype);
+        /// <summary> HStack </summary>
+        [DllImport(DLL_Name, CallingConvention = CallingConvention.Cdecl)]
+        protected static extern IntPtr np_hstack(IntPtr[] arrays, int array_count, SDType sdtype);
+
+        // ----------------------------------------------------------------
+        // 条件・論理演算系
+        // ----------------------------------------------------------------
+        /// <summary> Where </summary>
+        [DllImport(DLL_Name, CallingConvention = CallingConvention.Cdecl)]
+        protected static extern IntPtr np_where(IntPtr condition, IntPtr x, IntPtr y, SDType sdtype);
+        /// <summary> LogicalAnd </summary>
+        [DllImport(DLL_Name, CallingConvention = CallingConvention.Cdecl)]
+        protected static extern IntPtr np_logical_and(IntPtr a, IntPtr b);
+        /// <summary> LogicalOr </summary>
+        [DllImport(DLL_Name, CallingConvention = CallingConvention.Cdecl)]
+        protected static extern IntPtr np_logical_or(IntPtr a, IntPtr b);
+        /// <summary> LogicalNot </summary>
+        [DllImport(DLL_Name, CallingConvention = CallingConvention.Cdecl)]
+        protected static extern IntPtr np_logical_not(IntPtr a);
+
+        // ----------------------------------------------------------------
+        // 集計系
+        // ----------------------------------------------------------------
+        /// <summary> Sum NdArray </summary>
+        [DllImport(DLL_Name, CallingConvention = CallingConvention.Cdecl)]
+        protected static extern IntPtr np_sum_return_array(IntPtr src, SDType srcType, SDType resType, int axis = -1, bool keepdims = false);
+        /// <summary> Sum Scalar </summary>
+        [DllImport(DLL_Name, CallingConvention = CallingConvention.Cdecl)]
+        protected static extern long np_sum_return_scalar(IntPtr src, SDType srcType);
+        /// <summary> Mean </summary>
+        [DllImport(DLL_Name, CallingConvention = CallingConvention.Cdecl)]
+        protected static extern double np_mean(IntPtr src, SDType sdtype);
+        /// <summary> Max </summary>
+        [DllImport(DLL_Name, CallingConvention = CallingConvention.Cdecl)]
+        protected static extern double np_max(IntPtr src, SDType sdtype);
+        /// <summary> Min </summary>
+        [DllImport(DLL_Name, CallingConvention = CallingConvention.Cdecl)]
+        protected static extern double np_min(IntPtr src, SDType sdtype);
+
+        // ----------------------------------------------------------------
+        // 演算系
+        // ----------------------------------------------------------------
+        /// <summary> Add </summary>
+        [DllImport(DLL_Name, CallingConvention = CallingConvention.Cdecl)]
+        protected static extern IntPtr np_add(IntPtr a, IntPtr b, SDType sdtype);
+        /// <summary> Subtract </summary>
+        [DllImport(DLL_Name, CallingConvention = CallingConvention.Cdecl)]
+        protected static extern IntPtr np_subtract(IntPtr a, IntPtr b, SDType sdtype);
+        /// <summary> Multiply </summary>
+        [DllImport(DLL_Name, CallingConvention = CallingConvention.Cdecl)]
+        protected static extern IntPtr np_multiply(IntPtr a, IntPtr b, SDType sdtype);
+        /// <summary> Divide </summary>
+        [DllImport(DLL_Name, CallingConvention = CallingConvention.Cdecl)]
+        protected static extern IntPtr np_divide(IntPtr a, IntPtr b, SDType sdtype);
+
+        // ----------------------------------------------------------------
+        // ランダム系
+        // ----------------------------------------------------------------
+        /// <summary> RandomChoice </summary>
+        [DllImport(DLL_Name, CallingConvention = CallingConvention.Cdecl)]
+        protected static extern IntPtr np_random_choice(IntPtr src, long[] size, int size_length, bool replace, float[] p, int p_length, SDType sdtype);
+        /// <summary> RandomRand（0〜1の乱数） </summary>
+        [DllImport(DLL_Name, CallingConvention = CallingConvention.Cdecl)]
+        protected static extern IntPtr np_random_rand(long[] size, int size_nd);
+        /// <summary> RandomRandint </summary>
+        [DllImport(DLL_Name, CallingConvention = CallingConvention.Cdecl)]
+        protected static extern IntPtr np_random_randint(int low, int high, long[] size, int size_nd);
+
+        // ----------------------------------------------------------------
+        // 型変換系
+        // ----------------------------------------------------------------
+        /// <summary> Cast（astype） </summary>
+        [DllImport(DLL_Name, CallingConvention = CallingConvention.Cdecl)]
+        protected static extern IntPtr np_ndarray_cast(IntPtr src, SDType srctype, SDType restype);
+
+        /// <summary> ndarray_free </summary>
+        [DllImport(DLL_Name, CallingConvention = CallingConvention.Cdecl)]
+        protected static extern void ndarray_free(IntPtr src);
+
+        /// <summary> GetErrorMessage </summary>
+        [DllImport(DLL_Name, CallingConvention = CallingConvention.Cdecl)]
+        protected static extern IntPtr get_error_message();
+    }
+}

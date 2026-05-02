@@ -4,7 +4,7 @@
 // ----------------------------------------------------------------
 // 生成
 // ----------------------------------------------------------------
-NdArray* ndarray_create(int nd, int64_t *dimensions, size_t itemsize) {
+NdArray* ndarray_create(int nd, int64_t *dimensions, int itemsize) {
     NdArray *arr = (NdArray *)malloc(sizeof(NdArray));
     if (!arr) return NULL;
 
@@ -65,11 +65,11 @@ void* ndarray_copy(NdArray *arr) {
     if (!arr) return NULL;
     NdArray *copy = ndarray_create(arr->nd, arr->dimensions, arr->itemsize);
     if (!copy) return NULL;
-    size_t total = 1;
+    int n = 1;
     for (int i = 0; i < arr->nd; i++) {
-        total *= (size_t)arr->dimensions[i];
+        n *= (int)arr->dimensions[i];
     }
-    memcpy(copy->data, arr->data, total * arr->itemsize);
+    memcpy(copy->data, arr->data, n * arr->itemsize);
     return copy;
 }
 <Numpy>

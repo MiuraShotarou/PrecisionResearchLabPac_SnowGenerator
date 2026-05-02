@@ -1,5 +1,6 @@
-using System;
+using System.Linq;
 using UnityEngine;
+using System.Collections.Generic;
 using SnowflakeNative;
 
 public class Memo : MonoBehaviour
@@ -7,8 +8,10 @@ public class Memo : MonoBehaviour
     private void Awake()
     {
         var hoge = new NdArray<int>(new long[]{3, 4});
+        var list = new List<int>();
         // hoge.
     }
+    
     //アプローチ① 結晶の移動のみECS, Mesh生成はUniTaskで実行する
     // 期待する動作：Meshの生成 → GameObjectの生成 → すべてのGameObjectが生成し終えたら、Positionの初期化と移動処理を適用する
     // trianglesとverticesを１次元配列で管理するのはあり

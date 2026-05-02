@@ -12,11 +12,25 @@ typedef enum SDType {/* C言語 */
     UShort,         /* uint16_t */
     Int,            /* int32_t */
     UInt,           /* uint32_t */
-    Long,           /* int64_t */
+    Long,           /* int64_t */    /* npy_intp */
     ULong,          /* uint64_t */
     Float,          /* float */
     Double,         /* double */
-} SDType;
+} SDType;			
+
+typedef enum PadModeType {
+    Constant,    // 定数値でパディング（デフォルト：0）
+    Edge,        // 端の値でパディング
+    LinearRamp,  // 端の値から終端値への線形補間でパディング
+    Maximum,     // 最大値でパディング
+    Mean,        // 平均値でパディング
+    Median,      // 中央値でパディング
+    Minimum,     // 最小値でパディング
+    Reflect,     // 端の値を軸に反転してパディング
+    Symmetric,   // 端の値を含めて対称にパディング
+    Wrap,        // 配列を循環させてパディング
+    Empty,       // 未定義値でパディング
+} PadModeType;
 
 /* ============================================================
  * ORDER - 配列のメモリレイアウト順序
@@ -108,9 +122,18 @@ typedef enum DEVICE {
 } DEVICE;
 
 /* ============================================================
+ * OVERLAP - 重複の可否
+ * ============================================================ */
+typedef enum {
+    MEM_OVERLAP_NO      = 0,  // 重複なし
+    MEM_OVERLAP_YES     = 1,  // 重複あり
+    MEM_OVERLAP_UNKNOWN = 2,  // 不明
+} mem_overlap_t;
+
+/* ============================================================
  * ARRAY FLAGS - 配列フラグ（ビットフラグ）
  * ============================================================ */
-typedef enum ARRAY_FLAGS {
+typedef enum ARRAY_FLAGS { //NPY_ALIGNED_CASTING_FLAG
     ARRAY_C_CONTIGUOUS    = 0x0001, /* C順で連続したメモリ */
     ARRAY_F_CONTIGUOUS    = 0x0002, /* Fortran順で連続したメモリ */
     ARRAY_OWNDATA         = 0x0004, /* データの所有権を持つ */
@@ -124,5 +147,12 @@ typedef enum ARRAY_FLAGS {
     ARRAY_WRITEBACKIFCOPY = 0x2000, /* コピー時に書き戻し */
     ARRAY_WARN_ON_WRITE   = 0x4000  /* 書き込み時に警告 */
 } ARRAY_FLAGS;
+
+typedef enum {
+    NPY_METH_NO_FLOATINGPOINT_ERRORS = 1 << 0, // 浮動小数点エラーを発生させない
+    NPY_METH_REQUIRES_PYAPI          = 1 << 1, // Python APIが必要（GIL解放不可）
+    NPY_METH_IS_REORDERABLE          = 1 << 2, // 順序変更可能
+    NPY_METH_SUPPORTS_UNALIGNED      = 1 << 3, // アライメントなしをサポート
+} NPY_ARRAYMETHOD_FLAGS;
 
 #endif /* NUMPY_ENUMS_H */

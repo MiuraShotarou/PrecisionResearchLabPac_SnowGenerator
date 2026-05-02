@@ -56,3 +56,39 @@ void double_to_float(char *dest, double value) {
 void double_to_double(char *dest, double value) {
     memcpy(dest, &value, sizeof(double));
 }
+
+int itemsize_cast_by_sdtype(SDType sdtype)
+{
+    switch (sdtype) {
+    case Bool:   return sizeof(bool);
+    case SByte:  return sizeof(int8_t);
+    case Byte:   return sizeof(uint8_t);
+    case Short:  return sizeof(int16_t);
+    case UShort: return sizeof(uint16_t);
+    case Int:    return sizeof(int32_t);
+    case UInt:   return sizeof(uint32_t);
+    case Long:   return sizeof(int64_t);
+    case ULong:  return sizeof(uint64_t);
+    case Float:  return sizeof(float);
+    case Double: return sizeof(double);
+    default:     return -1;  // エラー
+    }
+}
+int64_t get_totalelements(int64_t *size, int size_nd)
+{
+    int64_t result = 1;
+    for (int i = 0; i < size_nd; i++) {
+        result *= size[i];
+    }
+    return result;
+}
+
+static void
+get_indices(int64_t flat, int64_t *dimensions, int nd, int64_t *out_indices)
+{
+    int64_t tmp = flat;
+    for (int d = nd - 1; d > -1; d--) {
+        out_indices[d] = tmp % dimensions[d];
+        tmp /= dimensions[d];
+    }
+}
