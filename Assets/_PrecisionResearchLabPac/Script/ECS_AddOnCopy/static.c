@@ -1,3 +1,5 @@
+#include <stdbool.h>
+#include <assert.h>
 #include "numpy_methods.h"
 
 DoubleScalarCast doublescalar_cast_by_sdtype[] = {
@@ -83,12 +85,67 @@ int64_t get_totalelements(int64_t *size, int size_nd)
     return result;
 }
 
+int64_t get_flat(int64_t *size, int size_nd)
+{
+	return get_totalelements(size, size_nd) - 1;
+}
+
+/* index アクセス系 */
 static void
-get_indices(int64_t flat, int64_t *dimensions, int nd, int64_t *out_indices)
+flat_to_indices(int64_t flat, int64_t *dimensions, int nd, int64_t *out_indices)
 {
     int64_t tmp = flat;
     for (int d = nd - 1; d > -1; d--) {
         out_indices[d] = tmp % dimensions[d];
         tmp /= dimensions[d];
     }
+}
+
+/* indices to flat */
+static int64_t
+indices_to_flat(int64_t *indices, int64_t *dimensions, int nd)
+{
+    int64_t flat = 0;
+    int64_t stride = 1;
+    for (int d = nd - 1; d > -1; d--) {
+        flat += indices[d] * stride;
+        stride *= dimensions[d];
+    }
+    return flat;
+}
+
+/* increment indices */
+static void
+increment_indices(int64_t *indices, int64_t *dimensions, int nd, int64_t *out_indices)
+{
+	bool carry = true; //dimensions == {3,4,3}
+	for (int d = nd - 1; d > -1 && carry; d--) { //nd == 3 → 2 ~ 0
+    	indices[d]++;                            //indices[] == {2, 3, 2} → {0, 0, 0}
+    	if (indices[d] < dimensions[d]) {
+        	carry = false;
+    	} else {
+        	indices[d] = 0;  // 桁上がり
+    	}
+	}
+	if (carry) { //true
+    	assert(true);
+	};
+}
+
+/* indices & strides to adress */
+static char*
+get_address(char *pointer, int64_t *indices, int64_t *strides, int nd)
+{
+    char *ptr = pointer;
+    for (int d = 0; d < nd; d++) {
+        ptr += indices[d] * strides[d];
+    }
+    return ptr;
+}
+
+/* adjust axis */
+static void
+adjust_axis(int *axis, int nd)
+{
+    *axis = (*axis < 0) ? nd + *axis : *axis;
 }

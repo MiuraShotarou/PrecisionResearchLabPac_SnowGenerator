@@ -1,14 +1,14 @@
 using System;
 using System.Linq;
+using System.Diagnostics;
 using System.Runtime.InteropServices;
-using Unity.Entities;
-using UnityEngine;
-using UnityEngine.Pool;
+using Cysharp.Threading.Tasks;
 
 /// <summary> _pointer のnullチェックを忘れずに記述すること </summary>
 /// <summary> メソッドの第一引数にthisを付与すること </summary>
 /// <summary> NdArrayを返すメソッドは破壊的操作なのか新規作成操作なのかを考慮して設計すること </summary>
 /// <summary> overflow対策は一旦しなくて良い </summary>
+/// <summary> dimensionsのlongはintにしたい </summary>
 namespace SnowflakeNative
 {
     /// <summary> Collection is NdArray </summary>
@@ -128,10 +128,14 @@ namespace SnowflakeNative
             return np_pad(pointer, pad_wdith, mode, value, resType);
         }
 
-        protected static IntPtr CSConcatenate<TResult>(IntPtr[] pointerArray, uint axis = 0) where TResult : unmanaged
+        protected static IntPtr CSConcatenate<TResult>(IntPtr[] pointerArray, int axis = 0) where TResult : unmanaged
         {
+            if (pointerArray.Any(ptr => ptr == IntPtr.Zero)) {
+                throw new ArgumentException(GetErrorMessage());
+            }
+            int array_count = pointerArray.Length;
             SDType resType = GenericsToSDType<TResult>();
-            return np_concatenate(pointerArray, axis, resType);
+            return np_concatenate(pointerArray, array_count, axis, resType);
         }
         /// <summary> 配列Aに新しい次元として配列Bを追加し、新規配列として返す </summary>
         protected static IntPtr CSStack<TResult>(IntPtr[] pointerArray, uint axis = 0) where TResult : unmanaged
@@ -168,7 +172,21 @@ namespace SnowflakeNative
             int size_nd = size.Length;
             return np_reshape(pointer, size, size_nd);
         }
-        
+
+        protected static int CSNdArrayNd(IntPtr pointer)
+        {  
+            return ndarray_nd(pointer);
+        }
+        /// <summary>  </summary> //戻り値をint[]に変更したい
+        protected static long[] CSShape(IntPtr pointer)
+        {
+            var get = np_shape(pointer);
+            int nd = ndarray_nd(pointer);
+            // int[] result = new int[nd];
+            long[] result = new long[nd];
+            Marshal.Copy(get, result, 0 ,nd);
+            return result;
+        }
         /// <summary> 便利系 </summary>
         private static SDType GenericsToSDType<T>() where T : unmanaged
         {
@@ -254,7 +272,7 @@ namespace SnowflakeNative
         [DllImport(DLL_Name, CallingConvention = CallingConvention.Cdecl)]
         protected static extern IntPtr np_pad(IntPtr src, int pad_width, PadModeType mode, double value, SDType sdtype);
         /// <summary> Concatenate </summary>
-        protected static extern IntPtr np_concatenate(IntPtr[] arrays, uint axis, SDType sdtype);
+        protected static extern IntPtr np_concatenate(IntPtr[] arrays, int array_count, int axis, SDType sdtype);
         /// <summary> Stack </summary>
         [DllImport(DLL_Name, CallingConvention = CallingConvention.Cdecl)]
         protected static extern IntPtr np_stack(IntPtr[] arrays, int array_count, uint axis, SDType sdtype);
@@ -335,7 +353,25 @@ namespace SnowflakeNative
         /// <summary> Cast（astype） </summary>
         [DllImport(DLL_Name, CallingConvention = CallingConvention.Cdecl)]
         protected static extern IntPtr np_ndarray_cast(IntPtr src, SDType srctype, SDType restype);
+        
+        // ----------------------------------------------------------------
+        // プロパティ取得系
+        // ----------------------------------------------------------------
+        /// <summary> nd </summary>
+        [DllImport(DLL_Name, CallingConvention = CallingConvention.Cdecl)]
+        protected static extern int ndarray_nd(IntPtr src);
+        
+        /// <summary> size </summary>
+        /// <summary> shape </summary>
+        [DllImport(DLL_Name, CallingConvention = CallingConvention.Cdecl)]
+        protected static extern IntPtr np_shape(IntPtr src);
 
+        /// <summary> dtype </summary>
+        /// <summary> itemsize </summary>
+        /// <summary> nbytes 総バイト数 </summary>
+        /// <summary> strides 各次元のストライド </summary>
+        /// <summary> data データバッファへのポインタ → これはなし </summary>
+        
         /// <summary> ndarray_free </summary>
         [DllImport(DLL_Name, CallingConvention = CallingConvention.Cdecl)]
         protected static extern void ndarray_free(IntPtr src);

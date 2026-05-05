@@ -7,7 +7,7 @@
 #include "enum.h"
 
 // SDType 指定で下記の(配列同士キャスト関数)を呼び出すことができるメソッド → 破壊的操作で変更する形に → 内部でsrcarray_to_resarray_tableを呼び出す
-NdArray *np_ndarray_cast (void *src, SDType srctype, SDType restype); //NdArray.dataに反映させれば良い
+NdArray *np_ndarray_cast (void *src, SDType srctype, SDType restype); //NdArray.dataに反映させれば良い → np_cast にリネーム
 /* typedefinition */
 typedef void (*ArrayCast)(void *src, void *res, size_t n);
 // ----------------------------------------------------------------

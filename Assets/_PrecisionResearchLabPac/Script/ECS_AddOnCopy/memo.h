@@ -15,6 +15,62 @@ for (int i = 0; i < 総要素数; i++) {
     // memcpy(dest, &value, itemsize) //要素の代入
 }
 
+get_indices(totalelements -1, dimensions, nd, int64_t[64] *) //indices とは、一次元配列にした際のindexを指定すると、多次元配列時のindexを返してくれる変数
+
+// フラット → 多次元
+for (int d = nd - 1; d > -1; d--) { //nd == 10 → for(9 ~ 0)
+    indices[d] = flat % dimensions[d]; //flat == 最大index % 各次元ごとの要素数
+                                        // {3, 4, 2} → 23 % {3, 4, 2} → {2, 3, 1}
+    flat /= dimensions[d];              //メソッド内引数の更新 → 23 → 11 → 2
+}
+
+// 多次元 → フラット
+int64_t flat = 0; //
+int64_t stride = 1; //
+for (int d = nd - 1; d > -1; d--) { //nd == 10 → 9 ~ 0
+    flat += indices[d] * stride;    //stride == next Index byte → flat
+    stride *= dimensions[d];        //
+}
+
+static int
+get_flat(int64_t *indices, int64_t *dimensions, int nd)
+{
+    int64_t flat = 0;
+    int64_t stride = 1;
+    for (int d = nd - 1; d > -1; d--) {
+        flat += indices[d] * stride;
+        stride *= dimensions[d];
+    }
+}
+    
+// 多次元カウンタを1ずつ進める
+int carry = 1; //dimensions == {3,4,3}
+for (int d = nd - 1; d > -1 && carry; d--) { //nd == 3 → 2 ~ 0
+    indices[d]++;                            //indices[] == {2, 3, 2} → {0, 0, 0}
+    if (indices[d] < dimensions[d]) {
+        carry = 0;
+    } else {
+        indices[d] = 0;  // 桁上がり
+    }
+}
+if (carry) {
+    assert()
+};
+    
+// ストライドを使った要素アクセス
+char *ptr = data;
+for (int d = 0; d < nd; d++) {
+    ptr += indices[d] * strides[d];
+}
+    
+// axis次元のオフセット管理
+int64_t axis_idx = res_indices[axis];
+int src_array = 0;
+while (axis_idx >= arrays[src_array]->dimensions[axis]) {
+    axis_idx -= arrays[src_array]->dimensions[axis];
+    src_array++;
+}
+
 //<copy concatenate>
 _nx.concatenate
 from . import fromnumeric as _from_nx, numeric as _nx, overrides → (.)同パッケージ内の、fromnumeric を _from_nx に(as)リネームする。numeric を (as)_nx にリネームする。

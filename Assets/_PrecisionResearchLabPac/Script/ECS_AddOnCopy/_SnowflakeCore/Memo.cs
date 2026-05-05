@@ -9,6 +9,7 @@ public class Memo : MonoBehaviour
     {
         var hoge = new NdArray<int>(new long[]{3, 4});
         var list = new List<int>();
+        
         // hoge.
     }
     
