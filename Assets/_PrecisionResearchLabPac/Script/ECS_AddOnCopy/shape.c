@@ -3,16 +3,10 @@
 #include "arrayobject.h"
 #include "error.h"
 
-concatenate //(int axis) の軸に従って、((配列1), (配列2))で指定した複数の配列を結合する。新しい次元の追加はしない。○
-stack       //(int axis) の軸に従って、((配列1), (配列2))で指定した複数の配列を結合する。新しく次元を追加する ○
-reshape     //(配列)を、行数、列数に対応した多次元配列に変換する ○
-shape       //(配列)の各次元のサイズをタプルで返すプロパティ → arrayobject.cに移動 ○
-resize      //(配列)を、行数、列数に対応した多次元配列に変換する。resultの要素数が足りなくてもそれを補うようにまた先頭の要素からコピーしていく
-squeeze     //(配列)からサイズが1の次元を除去する関数
-transpose   //(配列)の軸の順序を入れ替える
+
 
 static NdArray* //(int axis) の軸に従って、((配列1), (配列2))で指定した複数の配列を結合する。新しい次元の追加はしない
-np_concatenate(NdArray **arrays, int array_count, int axis, SDType restype) //shapeをふんだんに利用してコーディングされている
+np_concatenate(NdArray **arrays, int array_count, int axis) //shapeをふんだんに利用してコーディングされている
 {
     for (int i = 1; i < array_count; i++) {
         if (arrays[i]->nd != arrays[0]->nd) //各配列のnd一致チェック
@@ -112,8 +106,8 @@ np_concatenate(NdArray **arrays, int array_count, int axis, SDType restype) //sh
         res_dims[i] = i == axis? axis_size : arrays[0]->dimensions[i];
     }
     
-    /* 型のメモリサイズを計算 */
-    int itemsize = itemsize_cast_by_sdtype(restype);
+    /* 型のメモリサイズを取得 */
+    int itemsize = arrays[0]->itemsize;
     
     /* 形状を反映させたresult配列を作成 */
     NdArray* result = ndarray_create(res_nd, res_dims, itemsize);
@@ -126,7 +120,7 @@ np_concatenate(NdArray **arrays, int array_count, int axis, SDType restype) //sh
 
 /* array A B Concat */
 static NdArray*
-np_stack(NdArray **arrays, int array_count, int axis, SDType restype)
+np_stack(NdArray **arrays, int array_count, int axis)
 {
     /*
      *  {2, 3, 4}, {2, 3, 4}, axis = 0
@@ -260,7 +254,7 @@ np_stack(NdArray **arrays, int array_count, int axis, SDType restype)
             res_dims[i] = arrays[0]->dimensions[i < axis? i : i - 1];
         }
     }
-    int itemsize = itemsize_cast_by_sdtype(restype);
+    int itemsize = arrays[0]->itemsize;
     
     NdArray* result = ndarray_create(res_nd, res_dims, itemsize); //引数に既存のコレクションを指定
     
@@ -268,6 +262,28 @@ np_stack(NdArray **arrays, int array_count, int axis, SDType restype)
     merge_arrays_along_axis(arrays, array_count, axis, itemsize, result);
     
     return result;
+}
+
+static NdArray*
+np_vstack(NdArray **arrays, int array_count)
+{
+    if (arrays[0]->nd == 1) { //一次元配列だった場合
+        return np_stack(arrays, array_count, 0);
+    }
+    else {
+        return np_concatenate(arrays, array_count, 0);
+    }
+}
+    
+static NdArray*
+np_hstack(NdArray **arrays, int array_count)
+{
+    if (arrays[0]->nd == 1) {
+        return np_concatenate(arrays, array_count, 0);
+    }
+    else {
+        return np_concatenate(arrays, array_count, 1);
+    }
 }
 
 static void
@@ -309,5 +325,68 @@ np_reshape(NdArray *src, int64_t *size, int size_nd)
     //null check
     
     memcpy(result->data, src->data, res_total * src->itemsize);
+    return result;
+}
+    
+static NdArray*
+np_resize(NdArray *src, int64_t *size, int size_nd)
+{
+    int64_t src_total = get_totalelements(src->dimensions, src->nd);
+    int64_t res_total = get_totalelements(size, size_nd);
+    if (src_total == res_total) { // conditions reshape
+        return np_reshape(src, size, size_nd);
+    }
+        
+    int itemsize = src->itemsize;
+    NdArray *result = ndarray_create(size_nd, size, itemsize);
+    
+    int64_t roop = res_total / src_total; //64 / 66 == 0, 64 / 64 == 1, 64 / 32 == 2
+    int i = 0;
+    do {
+        memcpy(result->data + (i++ * src_total * itemsize), src->data, src_total * itemsize);
+    } while (--roop > 0);
+        
+    return result;
+}
+    
+static NdArray*
+np_squeeze(NdArray *src)
+{
+    /* result 配列の形状を確定 */
+    int res_nd = 0;
+    int64_t res_dims[64];
+    for (int i = 0; i < src->nd; i++) {
+        if (src->dimensions[i] > 1) {
+            res_dims[res_nd++] = src->dimensions[i];
+        }
+    }
+    
+    if (res_nd == src->nd) {
+        return src;
+    }
+    
+    NdArray *result = ndarray_create(res_nd, res_dims, src->itemsize);
+    
+    int64_t src_total = get_totalelements(src->dimensions, src->nd);
+    
+    memcpy(result->data, src->data, src_total * src->itemsize);
+
+    ndarray_free(src);
+
+    return result;
+}
+    
+static NdArray* //要素の入れ替え、反転
+np_transpose(NdArray *src, int64_t *size) //size.default == (0, 1, 2, 3……)
+{
+    NdArray *result = ndarray_copy(src);
+
+    for (int i = 0; i < src->nd; i++) {
+        result->dimensions[i] = src->dimensions[size[i]];
+        result->strides[i] = src->strides[size[i]];
+    }
+
+    ndarray_free(src);
+
     return result;
 }

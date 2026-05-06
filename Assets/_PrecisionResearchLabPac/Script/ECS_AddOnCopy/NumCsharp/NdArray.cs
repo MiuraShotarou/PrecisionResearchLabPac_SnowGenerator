@@ -7,6 +7,7 @@ using Cysharp.Threading.Tasks;
 /// <summary> _pointer のnullチェックを忘れずに記述すること </summary>
 /// <summary> メソッドの第一引数にthisを付与すること </summary>
 /// <summary> NdArrayを返すメソッドは破壊的操作なのか新規作成操作なのかを考慮して設計すること </summary>
+/// <summary> NdArrayを引数に渡すメソッドは、かならずヒープメモリからの解放処理をC言語側に記述すること </summary>
 /// <summary> overflow対策は一旦しなくて良い </summary>
 /// <summary> dimensionsのlongはintにしたい </summary>
 namespace SnowflakeNative
@@ -146,13 +147,22 @@ namespace SnowflakeNative
         }
 
         /// <summary> 配列を縦方向に順番に積み重ねる </summary>
-        protected static IntPtr CSVstack<TResult>(IntPtr[] pointerArray, int axis = -1) where TResult : unmanaged
+        protected static IntPtr CSVstack<TResult>(IntPtr[] pointerArray) where TResult : unmanaged
         {
-            SDType resType = GenericsToSDType<TResult>();
-            // 形状 N の1次元配列を(1, N)に再形成した後、最初の軸に沿って連結することと同等。
-            // [3,] + [3,] → [2, 3]
-            // [3, 1] + [3, 1] → [6, 1]
+            int array_count = pointerArray.Length;
+            return np_vstack(pointerArray, array_count);
         }
+        protected static IntPtr CSHstack<TResult>(IntPtr[] pointerArray) where TResult : unmanaged
+        {
+            int array_count = pointerArray.Length;
+            return np_hstack(pointerArray, array_count);
+        }
+        
+        protected static IntPtr CSSqueeze<TResult>(IntPtr pointer) where TResult : unmanaged
+        {
+            var result = np_squeeze(pointer);
+        }
+        
         /// <summary> 配列での受け取り </summary>
         protected static IntPtr CSSum<TSource, TResult>(IntPtr pointer, int axis = -1, bool keepdims = false) where TSource : unmanaged where TResult : unmanaged
         {
@@ -172,7 +182,16 @@ namespace SnowflakeNative
             int size_nd = size.Length;
             return np_reshape(pointer, size, size_nd);
         }
-
+        /// <summary> Resize </summary>
+        protected static IntPtr CSResize<TResult>(IntPtr pointer, long[] size) where TResult : unmanaged
+        {
+            int size_nd = size.Length;
+            IntPtr result = np_resize(pointer, size, size_nd);
+            // if (result == IntPtr.Zero) {
+            //     throw new InvalidOperationException(GetErrorMessage());
+            // }
+            return result;
+        }
         protected static int CSNdArrayNd(IntPtr pointer)
         {  
             return ndarray_nd(pointer);
@@ -186,6 +205,12 @@ namespace SnowflakeNative
             long[] result = new long[nd];
             Marshal.Copy(get, result, 0 ,nd);
             return result;
+        }
+
+        protected static IntPtr CSTranspose(IntPtr pointer, long[] size)
+        {
+            // size の例外条件洗い出し
+            return np_transpose(pointer, size);
         }
         /// <summary> 便利系 </summary>
         private static SDType GenericsToSDType<T>() where T : unmanaged
@@ -258,7 +283,7 @@ namespace SnowflakeNative
         protected static extern IntPtr np_reshape(IntPtr src, long[] size, int size_nd);
         /// <summary> Resize </summary>
         [DllImport(DLL_Name, CallingConvention = CallingConvention.Cdecl)]
-        protected static extern IntPtr np_resize(IntPtr src, long[] new_dims, int new_nd);
+        protected static extern IntPtr np_resize(IntPtr src, long[] size, int size_nd);
         /// <summary> Ravel（1次元に平坦化） </summary>
         [DllImport(DLL_Name, CallingConvention = CallingConvention.Cdecl)]
         protected static extern IntPtr np_ravel(IntPtr src);
@@ -267,7 +292,7 @@ namespace SnowflakeNative
         protected static extern IntPtr np_squeeze(IntPtr src);
         /// <summary> Transpose </summary>
         [DllImport(DLL_Name, CallingConvention = CallingConvention.Cdecl)]
-        protected static extern IntPtr np_transpose(IntPtr src);
+        protected static extern IntPtr np_transpose(IntPtr src, long[] size);
         /// <summary> Pad </summary>
         [DllImport(DLL_Name, CallingConvention = CallingConvention.Cdecl)]
         protected static extern IntPtr np_pad(IntPtr src, int pad_width, PadModeType mode, double value, SDType sdtype);
@@ -278,10 +303,10 @@ namespace SnowflakeNative
         protected static extern IntPtr np_stack(IntPtr[] arrays, int array_count, uint axis, SDType sdtype);
         /// <summary> VStack </summary>
         [DllImport(DLL_Name, CallingConvention = CallingConvention.Cdecl)]
-        protected static extern IntPtr np_vstack(IntPtr[] arrays, int array_count, SDType sdtype);
+        protected static extern IntPtr np_vstack(IntPtr[] arrays, int array_count);
         /// <summary> HStack </summary>
         [DllImport(DLL_Name, CallingConvention = CallingConvention.Cdecl)]
-        protected static extern IntPtr np_hstack(IntPtr[] arrays, int array_count, SDType sdtype);
+        protected static extern IntPtr np_hstack(IntPtr[] arrays, int array_count);
 
         // ----------------------------------------------------------------
         // 条件・論理演算系

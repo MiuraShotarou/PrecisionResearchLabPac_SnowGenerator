@@ -61,7 +61,7 @@ void* ndarray_get(NdArray *arr, int64_t *indices) {
     return (void *)ptr;
 }
 /* ndarrayポインタから新規ndarrayをコピーして作成 */
-void* ndarray_copy(NdArray *arr) {
+NdArray* ndarray_copy(NdArray *arr) {
     if (!arr) return NULL;
     NdArray *copy = ndarray_create(arr->nd, arr->dimensions, arr->itemsize);
     if (!copy) return NULL;

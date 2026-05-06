@@ -35,7 +35,7 @@ static void get_indices(int64_t flat, int64_t *dimensions, int nd, int64_t *out_
 // indicesを引数に渡して、flatを取得するメソッド
 static int64_t get_flat(int64_t *indices, int64_t *dimensions, int nd);
 
-// 
+// indicesを引数に渡して、index++ 時のindicesを取得するメソッド
 static void carry_indices(int64_t *dimensions, int nd, int64_t *out_indices);
 
 // 負のindexの変換処理

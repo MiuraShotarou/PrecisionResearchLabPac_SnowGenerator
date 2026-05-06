@@ -16,6 +16,7 @@ typedef struct {
 
 NdArray* ndarray_create(int nd, int64_t *dimensions, int itemsize); //引数に既存のコレクションを指定
 NdArray* ndarray_empty(int row, int col, int itemsize); //未初期化での生成
+NdArray* ndarray_copy(NdArray *arr);
 void     ndarray_free(NdArray *arr);
 void*    ndarray_get(NdArray *arr, int64_t *indices);
 
