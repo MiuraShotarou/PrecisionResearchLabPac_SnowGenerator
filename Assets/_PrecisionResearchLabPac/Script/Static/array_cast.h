@@ -6,8 +6,20 @@
 #include <stddef.h>
 #include "enum.h"
 
+///* mulitdimsarray to ndarray */ //→srcは解放しない方針で 
+//static NdArray*
+//multiarray_to_ndarray(char* src, int nd, int64_t dimensions, SDType sdtype) //nd と dimensionsが結局必要
+//{
+	
+
+	// 多次元配列の一次元化を行う
+//	int64_t totalelments = 
+
+//	①nd, ②dims, ③itemsize
+//}
+
 // SDType 指定で下記の(配列同士キャスト関数)を呼び出すことができるメソッド → 破壊的操作で変更する形に → 内部でsrcarray_to_resarray_tableを呼び出す
-NdArray *np_ndarray_cast (void *src, SDType srctype, SDType restype); //NdArray.dataに反映させれば良い → np_cast にリネーム
+NdArray *np_ndarray_cast (NdArray *src, SDType srctype, SDType restype); //NdArray.dataに反映させれば良い → np_cast にリネーム
 /* typedefinition */
 typedef void (*ArrayCast)(void *src, void *res, size_t n);
 // ----------------------------------------------------------------

@@ -16,7 +16,7 @@ typedef enum SDType {/* C言語 */
     ULong,          /* uint64_t */
     Float,          /* float */
     Double,         /* double */
-} SDType;			
+} SDType;
 
 typedef enum PadModeType {
     Constant,    // 定数値でパディング（デフォルト：0）
@@ -31,6 +31,13 @@ typedef enum PadModeType {
     Wrap,        // 配列を循環させてパディング
     Empty,       // 未定義値でパディング
 } PadModeType;
+
+typedef enum ArrayType //未使用の可能性
+{
+    NdArray,
+	Multi,
+    Jag
+}
 
 /* ============================================================
  * ORDER - 配列のメモリレイアウト順序

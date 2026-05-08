@@ -10,10 +10,12 @@ using Cysharp.Threading.Tasks;
 /// <summary> NdArrayを引数に渡すメソッドは、かならずヒープメモリからの解放処理をC言語側に記述すること </summary>
 /// <summary> overflow対策は一旦しなくて良い </summary>
 /// <summary> dimensionsのlongはintにしたい </summary>
+/// <summary> C言語側 np → ns にリネームしたい </summary>
+/// <summary> NdArrayのコンストラクタに、ユーザーが要素を指定して初期化できる実装を追加する </summary>
 namespace SnowflakeNative
 {
     /// <summary> Collection is NdArray </summary>
-    public class NdArray<T> : CSLanguageNative where T : unmanaged
+    public partial class NdArray<T> : CSLanguageNative where T : unmanaged
     {
         private IntPtr _pointer; //DisPoseを実装すべき
         /// <summary> for client method </summary>
@@ -22,7 +24,7 @@ namespace SnowflakeNative
             int nd = dimensions.Length;
             int itemsize = Marshal.SizeOf(typeof(T));
             _pointer = ndarray_create(nd, dimensions, itemsize, order);
-
+            
             if (_pointer == IntPtr.Zero)
             {
                 throw new InvalidOperationException("ndarray_create failed.");
@@ -79,7 +81,7 @@ namespace SnowflakeNative
     }
     
     /// <summary> Have CSharp Relay Method </summary>
-    public abstract class CSLanguageNative : CLanguageNative
+    public abstract partial class CSLanguageNative : CLanguageNative
     {
         /// <summary> dispose </summary>
         protected static void CSDispose(IntPtr pointer)
@@ -213,7 +215,7 @@ namespace SnowflakeNative
             return np_transpose(pointer, size);
         }
         /// <summary> 便利系 </summary>
-        private static SDType GenericsToSDType<T>() where T : unmanaged
+        protected static SDType GenericsToSDType<T>() where T : unmanaged
         {
             SDType resType;
             switch (typeof(T))
@@ -234,13 +236,48 @@ namespace SnowflakeNative
             }
             return resType;
         }
+        protected static SDType GenericsToSDType<T>() where T : unmanaged
+        {
+            SDType resType;
+            switch (typeof(T))
+            {
+                //引数の型
+                case Type t when t == typeof(bool): resType = SDType.Bool; break;
+                case Type t when t == typeof(sbyte): resType = SDType.SByte; break;
+                case Type t when t == typeof(byte): resType = SDType.Byte; break;
+                case Type t when t == typeof(short): resType = SDType.Short; break;
+                case Type t when t == typeof(ushort): resType = SDType.UShort; break;
+                case Type t when t == typeof(int): resType = SDType.Int; break;
+                case Type t when t == typeof(uint): resType = SDType.UInt; break;
+                case Type t when t == typeof(long): resType = SDType.Long; break;
+                case Type t when t == typeof(ulong): resType = SDType.ULong; break;
+                case Type t when t == typeof(float): resType = SDType.Float; break;
+                case Type t when t == typeof(double): resType = SDType.Double; break;
+                default: throw new NotSupportedException($"Unsupported type: {typeof(T)}");
+            }
+            return resType;
+        }
+        
+
+        /// <summary> array to ndarray </summary>
+        protected static IntPtr (Array src)
+        {
+            int nd = src.Rank;
+            long[] dimensions = new long[nd];
+            for (int i = 0; i < nd; i++) {
+                dimensions[i] = src.GetLength(i);
+            }
+            Type type = src.GetType().GetElementType();
+            IntPtr result = ndarray_create(nd, dimensions, , 0);
+            return ;
+        }
 
         /// <summary> エラー </summary>
-        private static string GetErrorMessage() => Marshal.PtrToStringAnsi(get_error_message()) ?? "unknown error.";
+        protected static string GetErrorMessage() => Marshal.PtrToStringAnsi(get_error_message()) ?? "unknown error.";
     }
 
     /// <summary> Native Code for NdArray </summary>
-    public abstract class CLanguageNative
+    public abstract partial class CLanguageNative
     {
         private const string DLL_Name = "CLanguageNative";
 

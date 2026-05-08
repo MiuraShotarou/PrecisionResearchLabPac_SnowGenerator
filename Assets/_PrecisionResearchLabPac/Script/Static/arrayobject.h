@@ -4,14 +4,14 @@
 // ----------------------------------------------------------------
 // 型定義
 // ----------------------------------------------------------------
-typedef intptr_t int64_t;
-
+/* struct NdArray */
 typedef struct {
     char    *data;          // 実データへのポインタ（先頭アドレス）
     int      nd;            // 次元数
     int64_t *dimensions;   // 各次元のサイズ
     int64_t *strides;      // 各次元で1要素進む際のバイト数 → 転置ができる
     int   itemsize;      // 1要素のバイト数 → 実質データ型でありstridesでもある
+	//SDType sdtype;		// new! NdArrayから取得出来るように変更予定
 } NdArray;
 
 NdArray* ndarray_create(int nd, int64_t *dimensions, int itemsize); //引数に既存のコレクションを指定
@@ -32,5 +32,7 @@ typedef struct {
     PyArrayMethod_Context context;    // キャストのコンテキスト情報
     PyArray_Descr *descriptors[2];    // [0]=src dtype, [1]=dst dtype
 } NPY_cast_info;
+
+/* struct  */
 
 #endif
