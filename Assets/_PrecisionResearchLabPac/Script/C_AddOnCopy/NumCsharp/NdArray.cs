@@ -12,12 +12,16 @@ using Cysharp.Threading.Tasks;
 /// <summary> dimensionsのlongはintにしたい </summary>
 /// <summary> C言語側 np → ns にリネームしたい </summary>
 /// <summary> NdArrayのコンストラクタに、ユーザーが要素を指定して初期化できる実装を追加する </summary>
+/// <summary> IDisposableインターフェイスの実装を検討 </summary>
+/// <summary> CSLanguageNativeクラス内でジェネリクスを使用しない書き方にリファクタしたい </summary>
 namespace SnowflakeNative
 {
     /// <summary> Collection is NdArray </summary>
-    public partial class NdArray<T> : CSLanguageNative where T : unmanaged
+    public partial class NdArray<T> : CSLanguageNative, INdArray where T : unmanaged
     {
         private IntPtr _pointer; //DisPoseを実装すべき
+        /// <summary> INdArray </summary>
+        IntPtr INdArray._pointer => this._pointer; //Indexerでのみ使用中
         /// <summary> for client method </summary>
         public NdArray(long[] dimensions, char order = 'C')
         {
@@ -79,7 +83,7 @@ namespace SnowflakeNative
         public static NdArray<TResult> Stack<TResult>(NdArray<TResult>[] srcArray, uint axis = 0) where TResult : unmanaged => Packing(new NdArray<TResult>(), CSStack<TResult>(srcArray.Select(arr => arr._pointer).ToArray(), axis));
         public static NdArray<TResult> VStack<TResult>(NdArray<TResult>[] srcArray, int axis = -1) where TResult : unmanaged => Packing(new NdArray<TResult>(), CSVStack<TResult>(srcArray.Select(arr => arr._pointer).ToArray(), srcArray.Length, axis = -1));
     }
-    
+
     /// <summary> Have CSharp Relay Method </summary>
     public abstract partial class CSLanguageNative : CLanguageNative
     {
@@ -217,50 +221,57 @@ namespace SnowflakeNative
         /// <summary> 便利系 </summary>
         protected static SDType GenericsToSDType<T>() where T : unmanaged
         {
-            SDType resType;
-            switch (typeof(T))
-            {
-                //引数の型
-                case Type t when t == typeof(bool): resType = SDType.Bool; break;
-                case Type t when t == typeof(sbyte): resType = SDType.SByte; break;
-                case Type t when t == typeof(byte): resType = SDType.Byte; break;
-                case Type t when t == typeof(short): resType = SDType.Short; break;
-                case Type t when t == typeof(ushort): resType = SDType.UShort; break;
-                case Type t when t == typeof(int): resType = SDType.Int; break;
-                case Type t when t == typeof(uint): resType = SDType.UInt; break;
-                case Type t when t == typeof(long): resType = SDType.Long; break;
-                case Type t when t == typeof(ulong): resType = SDType.ULong; break;
-                case Type t when t == typeof(float): resType = SDType.Float; break;
-                case Type t when t == typeof(double): resType = SDType.Double; break;
-                default: throw new NotSupportedException($"Unsupported type: {typeof(T)}");
-            }
-            return resType;
+            if      (typeof(T) == typeof(bool))   return SDType.Bool;
+            else if (typeof(T) == typeof(sbyte))  return SDType.SByte;
+            else if (typeof(T) == typeof(byte))   return SDType.Byte;
+            else if (typeof(T) == typeof(short))  return SDType.Short;
+            else if (typeof(T) == typeof(ushort)) return SDType.UShort;
+            else if (typeof(T) == typeof(int))    return SDType.Int;
+            else if (typeof(T) == typeof(uint))   return SDType.UInt;
+            else if (typeof(T) == typeof(long))   return SDType.Long;
+            else if (typeof(T) == typeof(ulong))  return SDType.ULong;
+            else if (typeof(T) == typeof(float))  return SDType.Float;
+            else if (typeof(T) == typeof(double)) return SDType.Double;
+            else throw new NotSupportedException($"Unsupported type: {typeof(T)}");
         }
-        protected static SDType GenericsToSDType<T>() where T : unmanaged
+        protected static SDType TypeToSDType(Type t)
         {
             SDType resType;
-            switch (typeof(T))
-            {
-                //引数の型
-                case Type t when t == typeof(bool): resType = SDType.Bool; break;
-                case Type t when t == typeof(sbyte): resType = SDType.SByte; break;
-                case Type t when t == typeof(byte): resType = SDType.Byte; break;
-                case Type t when t == typeof(short): resType = SDType.Short; break;
-                case Type t when t == typeof(ushort): resType = SDType.UShort; break;
-                case Type t when t == typeof(int): resType = SDType.Int; break;
-                case Type t when t == typeof(uint): resType = SDType.UInt; break;
-                case Type t when t == typeof(long): resType = SDType.Long; break;
-                case Type t when t == typeof(ulong): resType = SDType.ULong; break;
-                case Type t when t == typeof(float): resType = SDType.Float; break;
-                case Type t when t == typeof(double): resType = SDType.Double; break;
-                default: throw new NotSupportedException($"Unsupported type: {typeof(T)}");
-            }
+            if      (t == typeof(bool))   resType = SDType.Bool;
+            else if (t == typeof(sbyte))  resType = SDType.SByte;
+            else if (t == typeof(byte))   resType = SDType.Byte;
+            else if (t == typeof(short))  resType = SDType.Short;
+            else if (t == typeof(ushort)) resType = SDType.UShort;
+            else if (t == typeof(int))    resType = SDType.Int;
+            else if (t == typeof(uint))   resType = SDType.UInt;
+            else if (t == typeof(long))   resType = SDType.Long;
+            else if (t == typeof(ulong))  resType = SDType.ULong;
+            else if (t == typeof(float))  resType = SDType.Float;
+            else if (t == typeof(double)) resType = SDType.Double;
+            else throw new NotSupportedException($"Unsupported type: {t}");
             return resType;
         }
-        
+        protected static int ItemSizeCastBySDtype(SDType sdtype)
+        {
+            switch (sdtype)
+            {
+                case SDType.Bool:   return sizeof(bool);
+                case SDType.SByte:  return sizeof(sbyte);
+                case SDType.Byte:   return sizeof(byte);
+                case SDType.Short:  return sizeof(short);
+                case SDType.UShort: return sizeof(ushort);
+                case SDType.Int:    return sizeof(int);
+                case SDType.UInt:   return sizeof(uint);
+                case SDType.Long:   return sizeof(long);
+                case SDType.ULong:  return sizeof(ulong);
+                case SDType.Float:  return sizeof(float);
+                case SDType.Double: return sizeof(double);
+                default: throw new NotSupportedException($"Unsupported SDType: {sdtype}");
+            }
+        }
 
         /// <summary> array to ndarray </summary>
-        protected static IntPtr (Array src)
+        protected static IntPtr ArrayToNdArray(Array src) //src 解放しないver.
         {
             int nd = src.Rank;
             long[] dimensions = new long[nd];
@@ -268,8 +279,10 @@ namespace SnowflakeNative
                 dimensions[i] = src.GetLength(i);
             }
             Type type = src.GetType().GetElementType();
-            IntPtr result = ndarray_create(nd, dimensions, , 0);
-            return ;
+            SDType sdType = TypeToSDType(type);
+            int itemSize = ItemSizeCastBySDtype(sdType);
+            IntPtr result = ndarray_create(nd, dimensions, itemSize, 'c');
+            return result;
         }
 
         /// <summary> エラー </summary>

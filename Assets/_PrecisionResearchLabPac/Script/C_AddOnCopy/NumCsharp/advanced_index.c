@@ -1,15 +1,26 @@
 機能： 引数の配列はbool[]として機能する（ブールインデックス）。または、インデックスの配列として機能する（ファンシーインデックス）。C#標準提供の配列も戻り値にできる予定
 //形状は変化する。
-//
+//mask の形状が srcの形状より大きくなければ処理できる
+//mask == bool ならboolIndex, unmanagedならfancyIndex, それ以外の型はエラーになる → C#側で実装
+//slice処理
 
 NdArrayIndexer.csで定義されたインデクサーから呼び出す関数を実装する
 戻り値がNdArray *以外のメソッドは実装しない
 #include <stdbool.h>
 
-void * /= jag, 関数ポインタ //jagはキャストが必要（(void *)int *）。
+// void * /= jag, 関数ポインタ //jagはキャストが必要（(void *)int *）。
+
+static NdArray*
+get_ndarray_advancedindexing(NdArray *src, NdArray *mask)
+{
+    if (mask->sdtype == SDType.Bool)
+    {
+        
+    }
+}
 
 static NdArray* // mask == dimensions
-get_ndarray_boolIndex(NdArray *src, void *mask, int mask_nd, VoidPtrType masktype) //NdArray, Jag, 固定長
+get_ndarray_boolIndex(NdArray *src, NdArray *mask) //NdArray, Jag, 固定長
 {
     
     

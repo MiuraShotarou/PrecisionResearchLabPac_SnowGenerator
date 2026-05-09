@@ -32,7 +32,7 @@ typedef enum PadModeType {
     Empty,       // 未定義値でパディング
 } PadModeType;
 
-typedef enum ArrayType //未使用の可能性
+typedef enum ArrayType //不要の可能性
 {
     NdArray,
 	Multi,
