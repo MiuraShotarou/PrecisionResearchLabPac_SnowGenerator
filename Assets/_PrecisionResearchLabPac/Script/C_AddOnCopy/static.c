@@ -85,25 +85,26 @@ int64_t get_totalelements(int64_t *size, int size_nd)
     return result;
 }
 
-int64_t get_flat(int64_t *size, int size_nd)
+static int64_t
+get_last_flat(int64_t *size, int size_nd)
 {
 	return get_totalelements(size, size_nd) - 1;
 }
 
 /* index アクセス系 */
 static void
-flat_to_indices(int64_t flat, int64_t *dimensions, int nd, int64_t *out_indices)
+get_indices(int nd, int64_t *dimensions, int64_t flat, int64_t *out_indices)
 {
     int64_t tmp = flat;
     for (int d = nd - 1; d > -1; d--) {
         out_indices[d] = tmp % dimensions[d];
-        tmp /= dimensions[d];
+        tmp /= dimensions[d];s
     }
 }
 
 /* indices to flat */
 static int64_t
-indices_to_flat(int64_t *indices, int64_t *dimensions, int nd)
+get_flat(int nd, int64_t *dimensions, int64_t *indices)
 {
     int64_t flat = 0;
     int64_t stride = 1;

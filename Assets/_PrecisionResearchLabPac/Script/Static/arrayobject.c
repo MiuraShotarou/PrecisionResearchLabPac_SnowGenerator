@@ -2,7 +2,7 @@
 #include <stdint.h>
 
 // ----------------------------------------------------------------
-// 生成
+// 生成（空）
 // ----------------------------------------------------------------
 NdArray* ndarray_create(int nd, int64_t *dimensions, int itemsize) {
     NdArray *arr = (NdArray *)malloc(sizeof(NdArray));
@@ -60,19 +60,23 @@ void* ndarray_get(NdArray *arr, int64_t *indices) {
     }
     return (void *)ptr;
 }
-/* ndarrayポインタから新規ndarrayをコピーして作成 */
+/* NdArray* copy to NdArray */
 NdArray* ndarray_copy(NdArray *arr) {
-    if (!arr) return NULL;
-    NdArray *copy = ndarray_create(arr->nd, arr->dimensions, arr->itemsize);
-    if (!copy) return NULL;
-    int n = 1;
-    for (int i = 0; i < arr->nd; i++) {
-        n *= (int)arr->dimensions[i];
-    }
-    memcpy(copy->data, arr->data, n * arr->itemsize);
-    return copy;
+    NdArray *result = ndarray_convart(arr, arr->nd, arr->dimensions, arr->itemsize);
+	return result;
 }
+/* void* convert NdArray */
+static NdArray*
+ndarray_convart(void *src, int nd, int64_t *dimensions, int itemsize)
+{
+	// ※注意※　stringなども処理が通ってしまうため、C#側で防いでおくこと
+    NdArray *result = ndarray_create(nd, dimensions, itemsize);
+    if (result == NULL) return NULL;
 
+    int64_t total = get_totalelements(dimensions, nd);
+    memcpy(result->data, src, total * itemsize);
+    return result;
+}
 /* get prop */
 
 /* ver.int32 

@@ -1,6 +1,6 @@
 using System;
 using System.Linq;
-using System.Diagnostics;
+using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using Cysharp.Threading.Tasks;
 
@@ -14,14 +14,13 @@ using Cysharp.Threading.Tasks;
 /// <summary> NdArrayのコンストラクタに、ユーザーが要素を指定して初期化できる実装を追加する </summary>
 /// <summary> IDisposableインターフェイスの実装を検討 </summary>
 /// <summary> CSLanguageNativeクラス内でジェネリクスを使用しない書き方にリファクタしたい </summary>
+/// <summary> だいぶ先の話だが、Add関数やRemove関数も追加したいな </summary>
 namespace SnowflakeNative
 {
     /// <summary> Collection is NdArray </summary>
     public partial class NdArray<T> : CSLanguageNative, INdArray where T : unmanaged
     {
         private IntPtr _pointer; //DisPoseを実装すべき
-        /// <summary> INdArray </summary>
-        IntPtr INdArray._pointer => this._pointer; //Indexerでのみ使用中
         /// <summary> for client method </summary>
         public NdArray(long[] dimensions, char order = 'C')
         {
@@ -34,6 +33,26 @@ namespace SnowflakeNative
                 throw new InvalidOperationException("ndarray_create failed.");
             }
         }
+        // ----------------------------------------------------------------
+        // Listに対応するコンストラクタ
+        // ----------------------------------------------------------------
+        /// <summary> 要素を直接指定して初期化 ( new NdArray<int> { 1, 2, 3 } ) </summary>
+        public NdArray(IEnumerable<T> collection)
+        {
+            // TODO
+        }
+        /// <summary> C#配列から初期化 ( new NdArray<int>(array) ) </summary>
+        public NdArray(T[] array)
+        {
+            // TODO
+        }
+        /// <summary> C#多次元配列から初期化 ( new NdArray<int>(array) ) </summary>
+        public NdArray(Array array)
+        {
+            // TODO
+        }
+        /// <summary> INdArray </summary>
+        IntPtr INdArray._pointer => this._pointer; //Indexerでのみ使用中
 
         /// <summary> client dispose </summary>
         public static void Dispose(NdArray<T> src) => CSDispose(src._pointer);

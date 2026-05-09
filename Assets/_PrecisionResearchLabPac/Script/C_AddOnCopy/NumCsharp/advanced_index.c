@@ -1,7 +1,7 @@
 機能： 引数の配列はbool[]として機能する（ブールインデックス）。または、インデックスの配列として機能する（ファンシーインデックス）。C#標準提供の配列も戻り値にできる予定
 //形状は変化する。
 //mask の形状が srcの形状より大きくなければ処理できる
-//mask == bool ならboolIndex, unmanagedならfancyIndex, それ以外の型はエラーになる → C#側で実装
+//mask == bool ならboolIndex, unmanagedならfancyIndex, それ以外の型はエラーになる → C#側で実装s
 //slice処理
 
 NdArrayIndexer.csで定義されたインデクサーから呼び出す関数を実装する
@@ -13,38 +13,47 @@ NdArrayIndexer.csで定義されたインデクサーから呼び出す関数を
 static NdArray*
 get_ndarray_advancedindexing(NdArray *src, NdArray *mask)
 {
+    // geter用 NdArrayを形状だけ一致させ新規生成
+    NdArray *result = ndarray_create(src->nd, src->dimensions, src->itemsize);
     if (mask->sdtype == SDType.Bool)
     {
-        
+        assign_ndarray_boolindexing(src, mask, result);
     }
+    else
+    {
+        assign_ndarray_fancyindexing(src, mask, result);
+    }
+    return get;
 }
 
 static NdArray* // mask == dimensions
-get_ndarray_boolIndex(NdArray *src, NdArray *mask) //NdArray, Jag, 固定長
+get_ndarray_boolindex(NdArray *src, NdArray *mask, NdArray *out_res) //NdArray, Jag, 固定長
 {
-    
-    
-    // mask形状 == src形状 のエラーチェック
-    // ①総要素数のチェック
-    if (get_totalelements(src->dimensions, src->nd) != get_totalelements(mask, mask_nd))
-    {
+    // ①mask形状 >= src形状 のエラーチェック
+    if (src->nd >= mask->nd || ) {
         //error
         return NULL;
     }
-    // ②srcの種類ごとに別の方法で要素にアクセスし、result用プロパティに値を代入する。
-    int res_nd = 0;
-    int64_t res_dims[64];
-    int itemsize = src->itemsize; //変更しない
+    // ②src == out_res の形状のチェック
+    if (src->nd != out_res->nd || src->dimensions != out_res->dimensins || src->itemsize != out_res->itemsize) {
+        return NULL;
+    }
     
-    // result の形状を設定する
+    //形状が変化するため、必要
+    int res_nd;
+    int64_t res_dimension;
+    // stridesも？ → indexing専用のresult NdArray生成関数を書いても良いかも
     
-    for (int i = 0; i < mask_nd; i++) { //各次元にアクセス
-        for (int j = 0; j < mask[i]; j++) { //各要素にアクセス
-            // 現時点では、各次元の各要素にアクセスするループになっている → 実際は(要素index * cols(dimensions[i]) + 行index)
-            // 考えられるパターン → 
-            if ()
-            
-        }
+    // ③srcの種類ごとに別の方法で要素にアクセスし、result用プロパティに値を代入する。
+    int64_t *totalelements = get_totalelements(mask->nd, mask->dimensions, mask->itemsize);
+    for (int f = 0; f < totalelements; f++) {
+        // src, mask共に共通のindexを求める → strides
+        
+        bool value = mask->data + i * itemsize;
+        
+        // mask 配列にindexでアクセスし、trueであれば分岐処理
+        // maskの要素をout_resへ代入する。out_resの形状が既に決まっているならば、順々にアクセスしていくだけで良い
+        
     }
     
     // get 側で行うのでsrcは解放しない
@@ -57,13 +66,7 @@ get_ndarray_boolIndex(NdArray *src, NdArray *mask) //NdArray, Jag, 固定長
     }
 }
 
-/* src == array && mask == NdArray || array */
-static void*
-get_array_boolIndex(void *src, void *mask, int mask_nd, VoidPtrType masktype)
-{
-    
-}
-
+static NdArray*
 
 static void
 assign_dims_byboolindex(NdArray *src, int64_t *mask, int mask_nd, int64_t *out_dimension) //破壊的操作で本実装は対応 out_res

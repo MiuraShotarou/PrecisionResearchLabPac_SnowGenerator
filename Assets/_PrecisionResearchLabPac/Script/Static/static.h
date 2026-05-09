@@ -29,11 +29,13 @@ int itemsize_cast_by_sdtype (SDType sdtype);
 // 配列の総要素数を取得するメソッド
 int64_t get_totalelements(int64_t *size, int size_nd);
 
+static int64_t get_last_flat(int64_t *size, int size_nd);
+
 // flatを引数に渡して、indicesを取得するメソッド
-static void get_indices(int64_t flat, int64_t *dimensions, int nd, int64_t *out_indices); //out_indices == int64_t *[64]
+static void get_indices(int nd, int64_t *dimensions, int64_t flat, int64_t *out_indices) //out_indices == int64_t *[64]
 
 // indicesを引数に渡して、flatを取得するメソッド
-static int64_t get_flat(int64_t *indices, int64_t *dimensions, int nd);
+static void get_flat(int nd, int64_t *dimensions, int64_t *indices)
 
 // indicesを引数に渡して、index++ 時のindicesを取得するメソッド
 static void carry_indices(int64_t *dimensions, int nd, int64_t *out_indices);

@@ -1,11 +1,6 @@
 #include <stdbool.h>
 #include "error.h"
 
-sum ◎
-where ✗
-pad ◎
-stack / vstack
-
 //typedef struct {
 //    char    *data;          // 実データへのポインタ
 //    int      nd;            // 次元数
