@@ -4,12 +4,13 @@
 // ----------------------------------------------------------------
 // 生成（空）
 // ----------------------------------------------------------------
-NdArray* ndarray_create(int nd, int64_t *dimensions, int itemsize) {
+NdArray* ndarray_create(int nd, int64_t *dimensions, int itemsize, SDType sdtype) {
     NdArray *arr = (NdArray *)malloc(sizeof(NdArray));
     if (!arr) return NULL;
 
     arr->nd       = nd;
     arr->itemsize = itemsize;
+	arr->sdtype   = sdtype;
 
     // dimensions をコピー
     arr->dimensions = (int64_t *)malloc(sizeof(int64_t) * nd);
@@ -43,7 +44,7 @@ NdArray* ndarray_create(int nd, int64_t *dimensions, int itemsize) {
 // 解放
 // ----------------------------------------------------------------
 void ndarray_free(NdArray *arr) {
-    if (!arr) return;
+    if (!arr) return; //エラー処理を追記すること
     free(arr->data);
     free(arr->dimensions);
     free(arr->strides);
@@ -62,15 +63,15 @@ void* ndarray_get(NdArray *arr, int64_t *indices) {
 }
 /* NdArray* copy to NdArray */
 NdArray* ndarray_copy(NdArray *arr) {
-    NdArray *result = ndarray_convart(arr, arr->nd, arr->dimensions, arr->itemsize);
+    NdArray *result = ndarray_convart(arr, arr->nd, arr->dimensions, arr->itemsize, arr->sdtype);
 	return result;
 }
 /* void* convert NdArray */
 static NdArray*
-ndarray_convart(void *src, int nd, int64_t *dimensions, int itemsize)
+ndarray_convart(void *src, int nd, int64_t *dimensions, int itemsize, SDType sdtype)
 {
 	// ※注意※　stringなども処理が通ってしまうため、C#側で防いでおくこと
-    NdArray *result = ndarray_create(nd, dimensions, itemsize);
+    NdArray *result = ndarray_create(nd, dimensions, itemsize, sdtype);
     if (result == NULL) return NULL;
 
     int64_t total = get_totalelements(dimensions, nd);

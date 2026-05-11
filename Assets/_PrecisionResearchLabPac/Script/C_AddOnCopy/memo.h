@@ -12,8 +12,12 @@
 DScalarCast cast = dscalar_cast_by_sdtype[sdtype];
 for (int i = 0; i < 総要素数; i++) {
     cast(array->data + i * itemsize, value); //char*, double → char* == Index * 型サイズ + 固有アドレスの先頭
-    // memcpy(dest, &value, itemsize) //要素の代入
+    // memcpy(dest, &value, itemsize) //要素の代入 ((コピー先のアドレス), (コピー元のアドレス), (コピーするバイト数))
 }
+
+// ストライドを使った要素アクセス
+int64_t distance = ndarray->strides[nd_i]; //nd_i(指定した次元)に該当する配列内で、要素同士が多次元配列全体で見たときに何バイト離れているか。→ [a, b, c, d, a, b, c, d] → a → a == 4
+var value = ndarray->data + distance * dim_i; //dim_i(その次元内でのindex)
 
 get_indices(totalelements -1, dimensions, nd, int64_t[64] *) //indices とは、一次元配列にした際のindexを指定すると、多次元配列時のindexを返してくれる変数
 
@@ -56,12 +60,6 @@ for (int d = nd - 1; d > -1 && carry; d--) { //nd == 3 → 2 ~ 0
 if (carry) {
     assert()
 };
-    
-// ストライドを使った要素アクセス
-char *ptr = data;
-for (int d = 0; d < nd; d++) {
-    ptr += indices[d] * strides[d];
-}
     
 // axis次元のオフセット管理
 int64_t axis_idx = res_indices[axis];

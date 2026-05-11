@@ -8,6 +8,7 @@ using Cysharp.Threading.Tasks;
 /// <summary> メソッドの第一引数にthisを付与すること </summary>
 /// <summary> NdArrayを返すメソッドは破壊的操作なのか新規作成操作なのかを考慮して設計すること </summary>
 /// <summary> NdArrayを引数に渡すメソッドは、かならずヒープメモリからの解放処理をC言語側に記述すること </summary>
+/// <summary> C言語側で余分な大きさを持った配列を新規生成する場合は、不定値が入ってしまうことを念頭においてコーディングすること </summary>
 /// <summary> overflow対策は一旦しなくて良い </summary>
 /// <summary> dimensionsのlongはintにしたい </summary>
 /// <summary> C言語側 np → ns にリネームしたい </summary>

@@ -76,7 +76,8 @@ int itemsize_cast_by_sdtype(SDType sdtype)
     default:     return -1;  // エラー
     }
 }
-int64_t get_totalelements(int64_t *size, int size_nd)
+static int64_t
+get_totalelements(int size_nd, int64_t *size)
 {
     int64_t result = 1;
     for (int i = 0; i < size_nd; i++) {

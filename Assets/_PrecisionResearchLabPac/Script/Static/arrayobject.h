@@ -9,7 +9,7 @@ typedef struct {
     char    *data;          // 実データへのポインタ（先頭アドレス）
     int      nd;            // 次元数
     int64_t *dimensions;   // 各次元のサイズ
-    int64_t *strides;      // 各次元で1要素進む際のバイト数 → 転置ができる
+    int64_t *strides;      // 各次元の配列内において、多次元配列全体で見たときに要素同士が何バイト（距離）離れているか → 転置ができる
     int   itemsize;      // 1要素のバイト数 → 実質データ型でありstridesでもある
 	SDType sdtype;		// new! NdArrayから取得出来るように変更予定
 } NdArray;

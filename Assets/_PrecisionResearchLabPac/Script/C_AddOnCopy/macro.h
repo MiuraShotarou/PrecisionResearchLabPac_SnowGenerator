@@ -8,4 +8,7 @@
 #define NPY_NO_OVERLAP       1
 #define NPY_SHARE_BOUNDS     2
 
+#define ONE        1
+#define TWO        2
+
 #endif
