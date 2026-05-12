@@ -15,11 +15,13 @@ namespace SnowflakeNative
         protected static extern IntPtr get_ndarray_advancedindexing(IntPtr src, IntPtr mask);
         [DllImport(DLL_Name, CallingConvention = CallingConvention.Cdecl)]
         protected static extern IntPtr set_ndarray_advancedindexing(IntPtr src, IntPtr mask);
+        [DllImport(DLL_Name, CallingConvention = CallingConvention.Cdecl)]
+        protected static extern IntPtr ndarray_convert(IntPtr src, int nd, long[] dimensions, int itemsize, SDType sdtype);
     }
-    // 設計：
+    // 設計：C#提供の配列はNdArrayに変換し、その後C言語側で処理をする
     public partial class NdArray<T> : CSLanguageNative, INdArray where T : unmanaged
     {
-        /// <summary>  </summary>
+        /// <summary> by NdArray </summary>
         public NdArray<T> this[INdArray mask]
         {
             get
@@ -35,16 +37,36 @@ namespace SnowflakeNative
         {
             get
             {
-                int nd = mask.Rank;
-                long[] dimensions = new long[nd];
-                for (int i = 0; i < nd; i++) {
-                    dimensions[i] = mask.GetLength(i);  //各次元のサイズを取得
-                }
-                SDType sdtype= TypeToSDType(mask.GetType().GetElementType());
+                IntPtr result = IntPtr.Zero;
+                // NdArray の各要素を取得
+                int nd = ArrayNd(mask);
+                long[] dimensions = ArrayDimensions(mask, nd);
+                SDType sdtype = ArraySDtype(mask);
                 int itemsize = ItemSizeCastBySDtype(sdtype);
-                IntPtr result = ndarray_create(nd, dimensions, itemsize, 'C'); //値がコピーされていない → 要素を代入する処理だけC言語側で書けば良い → Array → NdArrayへの変換処理はC言語側へ
-                
-                return Packing(new NdArray<T>(), result);
+
+                IntPtr nd_mask = ndarray_convert(this._pointer, nd, dimensions, itemsize, sdtype); //値がコピーされていない → ndarray_convertを使用
+                switch (sdtype)
+                {
+                    case SDType.Bool:
+                        result = get_ndarray_advancedindexing(this._pointer, nd_mask);
+                        break;
+                    case SDType.Int:
+                        result = get_ndarray_advancedindexing(this._pointer, nd_mask);
+                        break;
+                    case SDType.Long:
+                    case SDType.UInt:
+                    case SDType.ULong:
+                    case SDType.UShort:
+                    case SDType.Short:
+                    case SDType.SByte:
+                    case SDType.Byte:
+                        nd_mask = np_ndarray_cast(nd_mask, SDType.Int);
+                        result = get_ndarray_advancedindexing(this._pointer, nd_mask);
+                        break;
+                    default:
+                        throw new NotSupportedException($"Unsupported SDType for indexing: {sdtype}");
+                }
+                return Packing(new NdArray<T>(), nd_mask);
             }
             set
             {
@@ -52,5 +74,10 @@ namespace SnowflakeNative
                 this._pointer = set_ndarray_advancedindexing(this._pointer, mask_ndarray); //破壊的操作で良いかも
             }
         }
+    }
+
+    public abstract partial class CSLanguageNative : CLanguageNative
+    {
+         
     }
 }

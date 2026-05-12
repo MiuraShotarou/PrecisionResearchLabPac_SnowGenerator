@@ -11,6 +11,7 @@ NdArrayIndexer.csで定義されたインデクサーから呼び出す関数を
 
 // void * /= jag, 関数ポインタ //jagはキャストが必要（(void *)int *）。
 
+/* get advancedindexing */
 static NdArray*
 get_ndarray_advancedindexing(NdArray *src, NdArray *mask)
 {
@@ -19,27 +20,38 @@ get_ndarray_advancedindexing(NdArray *src, NdArray *mask)
         //error
         return NULL;
     }
-    
     // ②dimensionsの各要素数が一致しているかのエラーチェック
     for (int d = 0; d < mask->nd; d++) {
         if (src->dimensions[d] != mask->dimensions[d]) {
             return NULL;
         }
     }
-    
     // geter用 NdArrayを形状だけ一致させ新規生成
     // NdArray *result = ndarray_create(src->nd, src->dimensions, src->itemsize);
-    NdArray *result = ndarray_create(src->nd, src->dimensions, src->itemsize, src->sdtype); //空で良い
-
-    if (mask->sdtype == Bool) // == SDType.Bool
-    {
-        // boolindexing用のresult配列作成関数を実装
-        result = boolindexingndarray_create(src, mask);
-        assign_ndarray_boolindexing(src, mask, result);
-    }
-    else
-    {
-        assign_ndarray_fancyindexing(src, mask, result);
+    NdArray *result = NULL; //空で良い
+    
+    switch (mask->sdtype) {
+        case Bool:
+            result = boolindexingndarray_create(src, mask);
+            assign_ndarray_boolindexing(src, mask, result);
+            break;
+        case Int:
+            result = fancyindexingndarray_create(src, mask);
+            assign_ndarray_fancyindexing(src, mask, result);
+        case UInt:
+        case Short:
+        case UShort:
+        case Long:
+        case ULong:
+        case SByte:
+        case Byte:
+            SET_ERROR_MESSAGE("Casting to int type is recommended in the calling code.");
+            result = fancyindexingndarray_create(src, mask);
+            assign_ndarray_fancyindexing(src, mask, result);
+            break;
+        default:
+            SET_ERROR_MESSAGE("get_ndarray_advancedindexing: unsupported mask sdtype.");
+            return NULL;
     }
     return result;
 }
@@ -64,24 +76,18 @@ boolindexingndarray_create(NdArray *src, NdArray *mask)
     // ②dimensionsの確定
     int64_t dimensions[64];
     memset(dimensions, 0, sizeof(dimensions));
-    for (int nd_i = 0; nd_i < src->nd; nd_i++) {
-        // 現状、src->nd ぶん繰り返すのでmask->dimensionsが範囲外アクセスになってしまう
-        // mask->dimensionsにアクセスできる範囲なら
-        if (nd_i < mask->nd) {
-            // maskの要素を取り出し、条件チェック
-            for (int dim_i = 0; dim_i < mask->dimensions[nd_i]; dim_i++) {
-                bool value;
-                memcpy(&value, mask->data + mask->strides[nd_i] * dim_i, sizeof(bool));
-                if (value) {
-                    dimensions[nd_i]++;
-                }
-            }
+    int64_t n = 0; //mask内のtrue数
+    int64_t mask_total = get_totalelements(mask->nd, mask->dimensions);
+    for (int64_t f = 0; f < mask_total; f++) {
+        bool value;
+        memcpy(&value, mask->data + f * mask->itemsize, sizeof(bool));
+        if (value) {
+            n++;
         }
-        // mask->dimensions にアクセスできなくなった場合、
-        else {
-            // result->dimensions[nd_i] に直接 src->dimensions[nd_i]を代入する
-            dimensions[nd_i] = src->dimensions[nd_i];
-        }
+    }
+    dimensions[0] = n;
+    for (int d = mask->nd; d < src->nd; d++) {
+        dimensions[d - mask->nd + 1] = src->dimensions[d]; //dimensions[1]……
     }
 
     // ③itemsize, sdtypeの設定
@@ -95,23 +101,27 @@ boolindexingndarray_create(NdArray *src, NdArray *mask)
     return result;
 }
 
-static NdArray*
-assign_ndarray_boolindexing(NdArray *src, NdArray *mask, NdArray *out_res) //NdArray, Jag, 固定長
+static void
+assign_ndarray_boolindexing(NdArray *src, NdArray *mask, NdArray *out_res)
 {
     // ①mask形状 >= src形状 のエラーチェック
     if (mask->nd > src->nd) {
         //error
-        return NULL;
-    }
-    // ②src == out_res の形状のチェック
-    if (src->nd != out_res->nd || src->dimensions != out_res->dimensins || src->itemsize != out_res->itemsize || src->sdtype != out_res->sdtype) {
-        return NULL;
+        return;
     }
     // ① は呼び出し元のメソッドでも実装している
     
     // indexing専用のresult NdArray生成関数を書いても良いかも → 書いた
     
-    // ③srcの種類ごとに別の方法で要素にアクセスし、result用プロパティに値を代入する。
+    // ②srcの種類ごとに別の方法で要素にアクセスし、result用プロパティに値を代入する。
+    // maskの次元数がsrcの次元数を超えていれば、スカラー代入ではなく子のdimensionに含まれるすべての要素を代入する
+    int64_t remaining = 1;
+    if (src->nd > mask->nd) {
+        for (int d = mask->nd; d < src->nd; d++) {
+            remaining *= src->dimensions[d];
+        }
+    }
+    // mask内のtrueをすべてコピーする
     int64_t mask_total = get_totalelements(mask->nd, mask->dimensions);
     int64_t res_i = 0;
     for (int f = 0; f < mask_total; f++) {
@@ -120,30 +130,138 @@ assign_ndarray_boolindexing(NdArray *src, NdArray *mask, NdArray *out_res) //NdA
         memcpy(&value, mask->data + f * mask->itemsize, sizeof(bool));
         // bool is true であればout_res に src の値を代入。out_resの形状が既に決まっているならば、順々にアクセスしていくだけで良い
         if(value) {
-            memcpy(out_res->data + (res_i++ * out_res->itemsize), src->data + (f * src->itemsize), out_res->itemsize);
+            memcpy(out_res->data + (res_i++ * out_res->itemsize * remaining), src->data + (f * src->itemsize * remaining), out_res->itemsize * remaining);
         }
     }
-    
     // get 側でsrcの解放は行わない
-    
     // 終了
 }
 
 static NdArray*
-
-static void
-assign_dims_byboolindex(NdArray *src, int64_t *mask, int mask_nd, int64_t *out_dimension) //破壊的操作で本実装は対応 out_res
+fancyindexingndarray_create(NdArray *src, NdArray *mask)
 {
-    // src → void* に変更予定
+    // src, maskのnullチェック
     
-    // mask をbool[]として扱う繰り返し文
-    for (int i = 0; i < mask_nd; i++) {
-        // true扱いの場合、src から要素をコピーし、サイズをインクリメントし、形状を確定させる。
-        
+    // ①ndの確定
+    int nd = 0;
+    if (src->nd == mask->nd) {
+        nd = 1; //macro化
+    }
+    else //if (src->nd > mask->nd)
+    {
+        nd = src->nd;
+    }
+    // ②dimensionsの確定
+    int64_t dimensions[64];
+    memset(dimensions, 0, sizeof(dimensions));
+    int64_t mask_total = get_totalelements(mask->nd, mask->dimensions);
+    dimensions[0] = mask_total;  // maskの総要素数
+    for (int d = mask->nd; d < src->nd; d++) {
+        dimensions[d - mask->nd + 1] = src->dimensions[d];  // 残りの次元
+    }
+
+    // ③itemsize, sdtypeの設定
+    NdArray *result = ndarray_create(nd, dimensions, src->itemsize, src->sdtype);
+    
+    if (result == NULL) {
+        SET_ERROR_MESSAGE("fancyindexingndarray_create: ndarray_create failed.");
+        return NULL;
     }
     
-    
-    // 一致する要素だけ抽出する処理を書けば良い
+    return result;
 }
 
-assign_nd_byboolindex()
+static void
+assign_ndarray_fancyindexing(NdArray *src, NdArray *mask, NdArray *out_res)
+{
+    // ①mask形状 >= src形状 のエラーチェック
+    if (mask->nd > src->nd) {
+        //error
+        return;
+    }
+    // ②maskの型チェック
+    if (mask->itemsize != sizeof(int32_t) || mask->sdtype != Int) {
+        return;
+    }
+    
+    // ③srcの種類ごとに別の方法で要素にアクセスし、result用プロパティに値を代入する。
+    // maskの次元数がsrcの次元数を超えていれば、スカラー代入ではなく子のdimensionに含まれるすべての要素を代入する
+    int64_t remaining = 1;
+    if (src->nd > mask->nd) {
+        for (int d = mask->nd; d < src->nd; d++) {
+            remaining *= src->dimensions[d];
+        }
+    }
+    
+    // mask内のtrueをすべてコピーする
+    int64_t mask_total = get_totalelements(mask->nd, mask->dimensions);
+    int64_t res_i = 0;
+    int d_i = 0;
+    int dim_i = 0;
+    for (int f = 0; f < mask_total; f++) {
+        // maskの要素をコピーする
+        int value;
+        memcpy(&value, mask->data + f * mask->itemsize, sizeof(int32_t));
+        value = adjust_axis(value, src->dimensions[d_i]);
+        // indexの範囲チェック
+        if (value < 0 || value >= src->dimensions[d_i]) {
+            SET_ERROR_MESSAGE("assign_ndarray_fancyindexing: index out of range.");
+            return;
+        }
+        // bool is true であればout_res に src の値を代入。out_resの形状が既に決まっているならば、順々にアクセスしていくだけで良い
+        memcpy(out_res->data + (res_i++ * out_res->itemsize * remaining), src->data + (value * src->itemsize * remaining), out_res->itemsize * remaining);
+        
+        // d_i & dim_i のインクリメント
+        if (++dim_i == mask->dimensions[d_i]) {
+            d_i++;
+            dim_i = 0;
+        }
+    }
+    // get 側でsrcの解放は行わない
+    // 終了
+}
+
+/* set advancedindexing */
+static void
+set_ndarray_advancedindexing(NdArray *src, NdArray *mask)
+{
+    // ①src->nd >= mask->nd のエラーチェック
+    if (mask->nd > src->nd) {
+        //error
+        return NULL;
+    }
+    // ②dimensionsの各要素数が一致しているかのエラーチェック
+    for (int d = 0; d < mask->nd; d++) {
+        if (src->dimensions[d] != mask->dimensions[d]) {
+            return NULL;
+        }
+    }
+    // geter用 NdArrayを形状だけ一致させ新規生成
+    // NdArray *result = ndarray_create(src->nd, src->dimensions, src->itemsize);
+    NdArray *result = NULL; //空で良い
+    
+    switch (mask->sdtype) {
+    case Bool:
+        result = boolindexingndarray_create(src, mask);
+        assign_ndarray_boolindexing(src, mask, result);
+        break;
+    case Int:
+        result = fancyindexingndarray_create(src, mask);
+        assign_ndarray_fancyindexing(src, mask, result);
+    case UInt:
+    case Short:
+    case UShort:
+    case Long:
+    case ULong:
+    case SByte:
+    case Byte:
+        SET_ERROR_MESSAGE("Casting to int type is recommended in the calling code.");
+        result = fancyindexingndarray_create(src, mask);
+        assign_ndarray_fancyindexing(src, mask, result);
+        break;
+    default:
+        SET_ERROR_MESSAGE("get_ndarray_advancedindexing: unsupported mask sdtype.");
+        return NULL;
+    }
+    return result;
+}

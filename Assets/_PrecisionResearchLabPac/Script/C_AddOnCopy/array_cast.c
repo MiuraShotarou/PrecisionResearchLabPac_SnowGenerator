@@ -1,8 +1,13 @@
 #include "array_cast.h"
 
 // SDType 指定で下記の(配列同士キャスト関数)を呼び出すことができるメソッド → 破壊的操作で変更する形に
-NdArray* np_ndarray_cast (NdArray *src, SDType srctype, SDType restype) {
+NdArray* np_ndarray_cast (NdArray *src, SDType restype) {
     /* check NULL */
+	if (src == NULL) {
+		return NULL;
+	}
+
+	SDType srctype = src->sdtype;
     ArrayCast srcarray_to_resarray = srcarray_to_resarray_table[srctype][restype];
     if (srcarray_to_resarray == NULL) {
         return NULL; //pass C#

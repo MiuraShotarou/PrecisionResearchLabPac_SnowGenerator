@@ -146,8 +146,9 @@ get_address(char *pointer, int64_t *indices, int64_t *strides, int nd)
 }
 
 /* adjust axis */
-static void
-adjust_axis(int *axis, int nd)
+static int
+adjust_axis(int axis, int nd)
 {
-    *axis = (*axis < 0) ? nd + *axis : *axis;
+    //axis = (axis < 0) ? nd + *axis : *axis;
+	return (axis < 0) ? nd + axis : axis;
 }

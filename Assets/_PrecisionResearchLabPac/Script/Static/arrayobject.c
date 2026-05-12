@@ -68,7 +68,7 @@ NdArray* ndarray_copy(NdArray *arr) {
 }
 /* void* convert NdArray */
 static NdArray*
-ndarray_convart(void *src, int nd, int64_t *dimensions, int itemsize, SDType sdtype)
+ndarray_convert(void *src, int nd, int64_t *dimensions, int itemsize, SDType sdtype)
 {
 	// ※注意※　stringなども処理が通ってしまうため、C#側で防いでおくこと
     NdArray *result = ndarray_create(nd, dimensions, itemsize, sdtype);

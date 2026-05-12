@@ -218,6 +218,7 @@ namespace SnowflakeNative
             // }
             return result;
         }
+        /// <summary> NdArrayクラスにてNdメソッドとして実装 </summary>
         protected static int CSNdArrayNd(IntPtr pointer)
         {  
             return ndarray_nd(pointer);
@@ -289,7 +290,23 @@ namespace SnowflakeNative
                 default: throw new NotSupportedException($"Unsupported SDType: {sdtype}");
             }
         }
-
+        protected static int ArrayNd(Array array)
+        {
+            return array.Rank;
+        }
+        protected static long[] ArrayDimensions(Array array, int nd)
+        {
+            long[] dimensions = new long[nd];
+            for (int i = 0; i < nd; i++) {
+                dimensions[i] = array.GetLength(i);  //各次元のサイズを取得
+            }
+            return dimensions;
+        }
+        protected static SDType ArraySDtype(Array array)
+        {
+            return TypeToSDType(array.GetType().GetElementType());
+        }
+        
         /// <summary> array to ndarray </summary>
         protected static IntPtr ArrayToNdArray(Array src) //src 解放しないver.
         {
@@ -447,7 +464,7 @@ namespace SnowflakeNative
         // ----------------------------------------------------------------
         /// <summary> Cast（astype） </summary>
         [DllImport(DLL_Name, CallingConvention = CallingConvention.Cdecl)]
-        protected static extern IntPtr np_ndarray_cast(IntPtr src, SDType srctype, SDType restype);
+        protected static extern IntPtr np_ndarray_cast(IntPtr src, SDType restype);
         
         // ----------------------------------------------------------------
         // プロパティ取得系
