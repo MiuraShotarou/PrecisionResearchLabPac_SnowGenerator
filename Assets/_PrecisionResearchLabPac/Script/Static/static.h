@@ -26,11 +26,10 @@ void double_to_double (char *dest, double value);
 // SDTypeを入れるとitemsizeがわかるメソッドの宣言 ○
 int itemsize_cast_by_sdtype (SDType sdtype);
 
-// itemsizeを入れると
-
 // 配列の総要素数を取得するメソッド
 int64_t get_totalelements(int64_t *size, int size_nd);
 
+// 配列を一次元化した際の末尾インデクスを取得するメソッド
 static int64_t get_last_flat(int64_t *size, int size_nd);
 
 // flatを引数に渡して、indicesを取得するメソッド

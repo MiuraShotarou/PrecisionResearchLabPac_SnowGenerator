@@ -21,7 +21,9 @@ NdArray* ndarray_convert(void *src, int nd, int64_t *dimensions, int itemsize, S
 void     ndarray_free(NdArray *arr);
 void*    ndarray_get(NdArray *arr, int64_t *indices);
 
-int 
+/* 便利系 */
+// NdArrayの要素数が１であることをboolで取得するメソッド
+static bool check_scalar(NdArray *arr);
 
 //Numpy copy
 typedef struct {

@@ -9,6 +9,22 @@
 //    int   itemsize;      // 1要素のバイト数 → 実質データ型でありstridesでもある
 //} NdArray;
 
+ /* scalar to ndarray */
+static NdArray *
+np_asarray(void *value, SDType sdtype)
+{
+	// NULL チェック
+
+	int itemsize = itemsize_cast_by_sdtype(sdtype);
+	NdArray *result = ndarray_convert(value, NDARRAY_MIN_ND, NDARRAY_MIN_DIMENSIONS, itemsize, sdtype);
+
+	if (!check_scalar(result)) {
+		return NULL;
+	}
+	
+	return result;
+}
+
  /*  */
 static NdArray *
 np_zeros(int64_t *size, int size_nd, SDtype sdtype)//order='C'C言語, 'F'Fotran 内部でfullを呼んでも良い

@@ -8,7 +8,9 @@
 #define NPY_NO_OVERLAP       1
 #define NPY_SHARE_BOUNDS     2
 
-#define ONE        1
-#define TWO        2
+#define NDARRAY_MIN_ND		   1
+#define NDARRAY_MIN_DIMENSIONS 1
+#define NDARRAY_MAX_ND         64
+#define NDARRAY_MAX_DIMENSIONS 64
 
 #endif

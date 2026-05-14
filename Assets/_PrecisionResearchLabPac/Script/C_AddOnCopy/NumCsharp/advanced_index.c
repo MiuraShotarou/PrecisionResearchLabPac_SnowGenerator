@@ -38,6 +38,7 @@ get_ndarray_advancedindexing(NdArray *src, NdArray *mask)
         case Int:
             result = fancyindexingndarray_create(src, mask);
             assign_ndarray_fancyindexing(src, mask, result);
+            break;
         case UInt:
         case Short:
         case UShort:
@@ -223,45 +224,47 @@ assign_ndarray_fancyindexing(NdArray *src, NdArray *mask, NdArray *out_res)
 
 /* set advancedindexing */
 static void
-set_ndarray_advancedindexing(NdArray *src, NdArray *mask)
+set_ndarray_advancedindexing(NdArray *out_src, NdArray *mask, NdArray *value)
 {
     // ①src->nd >= mask->nd のエラーチェック
-    if (mask->nd > src->nd) {
+    if (mask->nd > out_src->nd) {
         //error
-        return NULL;
+        return;
     }
     // ②dimensionsの各要素数が一致しているかのエラーチェック
     for (int d = 0; d < mask->nd; d++) {
-        if (src->dimensions[d] != mask->dimensions[d]) {
-            return NULL;
+        if (out_src->dimensions[d] != mask->dimensions[d]) {
+            return;
         }
     }
     // geter用 NdArrayを形状だけ一致させ新規生成
     // NdArray *result = ndarray_create(src->nd, src->dimensions, src->itemsize);
-    NdArray *result = NULL; //空で良い
+    NdArray *src = NULL;
+    if (check_scalar(out_src))
+    {
+        NdArray *src = ndarray_copy(out_src);
+    }
     
     switch (mask->sdtype) {
-    case Bool:
-        result = boolindexingndarray_create(src, mask);
-        assign_ndarray_boolindexing(src, mask, result);
-        break;
-    case Int:
-        result = fancyindexingndarray_create(src, mask);
-        assign_ndarray_fancyindexing(src, mask, result);
-    case UInt:
-    case Short:
-    case UShort:
-    case Long:
-    case ULong:
-    case SByte:
-    case Byte:
-        SET_ERROR_MESSAGE("Casting to int type is recommended in the calling code.");
-        result = fancyindexingndarray_create(src, mask);
-        assign_ndarray_fancyindexing(src, mask, result);
-        break;
-    default:
-        SET_ERROR_MESSAGE("get_ndarray_advancedindexing: unsupported mask sdtype.");
-        return NULL;
+        case Bool:
+            assign_ndarray_boolindexing(src, mask, out_src);//※
+            break;
+        case Int:
+            assign_ndarray_fancyindexing(src, mask, out_src);
+            break;
+        case UInt:
+        case Short:
+        case UShort:
+        case Long:
+        case ULong:
+        case SByte:
+        case Byte:
+            SET_ERROR_MESSAGE("Casting to int type is recommended in the calling code.");
+            assign_ndarray_fancyindexing(src, mask, out_src);
+            break;
+        default:
+            SET_ERROR_MESSAGE("get_ndarray_advancedindexing: unsupported mask sdtype.");
+            break;
     }
-    return result;
+    //破壊的操作のため戻り値は無し
 }

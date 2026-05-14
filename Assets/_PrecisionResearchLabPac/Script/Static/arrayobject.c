@@ -93,6 +93,7 @@ ndarray_shape(NdArray *src)
 }
 */
 
+/* properties */
 static int64_t*
 ndarray_shape(NdArray *src)
 {
@@ -100,4 +101,14 @@ ndarray_shape(NdArray *src)
     if (shape == NULL) return NULL;
     memcpy(shape, src->dimensions, sizeof(int64_t) * src->nd);
     return shape;
+}
+
+/* convenience */
+static bool
+check_scalar(NdArray *arr)
+{
+    if (arr == NULL || arr->nd != 1 || arr->dimensions[0] != 1) {
+		return false;
+	}
+	return true;
 }

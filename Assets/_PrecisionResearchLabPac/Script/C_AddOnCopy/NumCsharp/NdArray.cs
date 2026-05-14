@@ -1,3 +1,4 @@
+// NdArray.cs
 using System;
 using System.Linq;
 using System.Collections.Generic;
@@ -5,6 +6,7 @@ using System.Runtime.InteropServices;
 using Cysharp.Threading.Tasks;
 
 /// <summary> _pointer のnullチェックを忘れずに記述すること </summary>
+/// <summary> 現状、where T : unmanagedの付与により、Tへ参照型（stringなど）を渡すことができない </summary>
 /// <summary> メソッドの第一引数にthisを付与すること </summary>
 /// <summary> NdArrayを返すメソッドは破壊的操作なのか新規作成操作なのかを考慮して設計すること </summary>
 /// <summary> NdArrayを引数に渡すメソッドは、かならずヒープメモリからの解放処理をC言語側に記述すること </summary>
@@ -34,26 +36,13 @@ namespace SnowflakeNative
                 throw new InvalidOperationException("ndarray_create failed.");
             }
         }
-        // ----------------------------------------------------------------
-        // Listに対応するコンストラクタ
-        // ----------------------------------------------------------------
-        /// <summary> 要素を直接指定して初期化 ( new NdArray<int> { 1, 2, 3 } ) </summary>
-        public NdArray(IEnumerable<T> collection)
-        {
-            // TODO
-        }
-        /// <summary> C#配列から初期化 ( new NdArray<int>(array) ) </summary>
-        public NdArray(T[] array)
-        {
-            // TODO
-        }
-        /// <summary> C#多次元配列から初期化 ( new NdArray<int>(array) ) </summary>
-        public NdArray(Array array)
+        public NdArray(Array array, char order = 'C')
         {
             // TODO
         }
         /// <summary> INdArray </summary>
         IntPtr INdArray._pointer => this._pointer; //Indexerでのみ使用中
+        SDType INdArray._sdtype => GenericsToSDType<T>();
 
         /// <summary> client dispose </summary>
         public static void Dispose(NdArray<T> src) => CSDispose(src._pointer);
@@ -71,6 +60,8 @@ namespace SnowflakeNative
 
         /// <summary> NdArrayCopy </summary>
         public static NdArray<TSource> NdArrayCopy<TSource>(NdArray<TSource> src) where TSource : unmanaged => Packing(src, CSCopy(src._pointer)); //※コンストラクタと機能被り可能性
+		/// <summary> AsArray </summary>
+		public static NdArray<TSource> AsArray<TSource>(NdArray<TSource> src) where TSource : unmanaged => Packing(src, CSAsArray(src._pointer)); //※型変換と機能被り可能性
         /// <summary> Zeros </summary>
         public static NdArray<TResult> Zeros<TResult>(long[] size, double value) where TResult : unmanaged =>  Packing<TResult>(new NdArray<TResult>(), CSZeros<TResult>(size, value));
         /// <summary> Ones </summary>
@@ -116,6 +107,19 @@ namespace SnowflakeNative
         
         // 引数, 戻り値に NdArray<T>の使用を禁止
         protected static IntPtr CSCopy(IntPtr pointer) => ndarray_copy(pointer);
+        /// <summary>  </summary>s
+        protected static IntPtr CSAsArray<TResult>(TResult value) where TResult : unmanaged
+        {
+            // value == structを不可に、stringを有りにする。valueに参照型を渡すことはできない
+            SDType sdType = GenericsToSDType<TResult>();
+            int itemsize = ItemSizeCastBySDtype(sdType);
+            // スタック上にメモリを確保してscalarをコピー
+            IntPtr pointer = Marshal.AllocHGlobal(itemsize);
+            Marshal.StructureToPtr(value, pointer, false);
+            // scalarをNdArrayに変換する処理
+            IntPtr result = np_asarray(pointer, sdType);
+			return result;
+        }
         protected static IntPtr CSFull<TResult>(long[] size, double value) where TResult : unmanaged
         {
             SDType restype = GenericsToSDType<TResult>();
@@ -340,6 +344,9 @@ namespace SnowflakeNative
         /// <summary> NdArrayCopy </summary>
         [DllImport(DLL_Name, CallingConvention = CallingConvention.Cdecl)]
         protected static extern IntPtr ndarray_copy(IntPtr src);
+        /// <summary> AsArray </summary>
+        [DllImport(DLL_Name, CallingConvention = CallingConvention.Cdecl)]
+        protected static extern IntPtr np_asarray(IntPtr src, SDType sdtype);
         /// <summary> Zeros </summary>
         [DllImport(DLL_Name, CallingConvention = CallingConvention.Cdecl)]
         protected static extern IntPtr np_zeros(long[] size, int size_nd, SDType sdtype);
@@ -472,11 +479,11 @@ namespace SnowflakeNative
         /// <summary> nd </summary>
         [DllImport(DLL_Name, CallingConvention = CallingConvention.Cdecl)]
         protected static extern int ndarray_nd(IntPtr src);
-        
-        /// <summary> size </summary>
         /// <summary> shape </summary>
         [DllImport(DLL_Name, CallingConvention = CallingConvention.Cdecl)]
         protected static extern IntPtr np_shape(IntPtr src);
+        
+        /// <summary> size </summary>
 
         /// <summary> dtype </summary>
         /// <summary> itemsize </summary>
