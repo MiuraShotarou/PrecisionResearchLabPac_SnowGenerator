@@ -36,7 +36,15 @@ namespace SnowflakeNative
                 throw new InvalidOperationException("ndarray_create failed.");
             }
         }
-        public NdArray(Array array, char order = 'C')
+        public NdArray(T scalar, char order = 'C') //OK
+        {
+            // TODO
+        }
+        public NdArray(Array array, char order = 'C') //OK
+        {
+            // TODO
+        }
+        public NdArray(List<T> list, char order = 'C') //未実装
         {
             // TODO
         }
@@ -137,10 +145,9 @@ namespace SnowflakeNative
         }
         protected static IntPtr CSArrayCast<TSource, TResult>(IntPtr pointer) where TSource : unmanaged where TResult : unmanaged
         {
-            SDType srcType = GenericsToSDType<TSource>();
             SDType resType = GenericsToSDType<TResult>();
             // pointerをC言語側へ渡す
-            IntPtr result = np_ndarray_cast(pointer, srcType, resType); //SDTypeでどのメソッドを呼び出すのか決めている。+ Source元の配列のポインタから具体的な型のついたポインタに変換する必要がある。それを、C言語側で行う。C#側のNdArrayは用意しなくて良い。
+            IntPtr result = np_ndarray_cast(pointer, resType); //SDTypeでどのメソッドを呼び出すのか決めている。+ Source元の配列のポインタから具体的な型のついたポインタに変換する必要がある。それを、C言語側で行う。C#側のNdArrayは用意しなくて良い。
             if (result == IntPtr.Zero) {
                 throw new InvalidOperationException(GetErrorMessage());
             }
@@ -314,15 +321,16 @@ namespace SnowflakeNative
         /// <summary> array to ndarray </summary>
         protected static IntPtr ArrayToNdArray(Array src) //src 解放しないver.
         {
-            int nd = src.Rank;
-            long[] dimensions = new long[nd];
-            for (int i = 0; i < nd; i++) {
-                dimensions[i] = src.GetLength(i);
-            }
-            Type type = src.GetType().GetElementType();
-            SDType sdType = TypeToSDType(type);
+            int nd = ArrayNd(src);
+            long[] dimensions = ArrayDimensions(src, nd);
+            SDType sdType = ArraySDtype(src);
             int itemSize = ItemSizeCastBySDtype(sdType);
-            IntPtr result = ndarray_create(nd, dimensions, itemSize, 'c');
+            GCHandle handle = GCHandle.Alloc(src, GCHandleType.Pinned); //
+            IntPtr srcPtr = handle.AddrOfPinnedObject();
+            IntPtr result = ndarray_convert(srcPtr, nd, dimensions, itemSize, sdType);
+            
+            handle.Free();
+            
             return result;
         }
 

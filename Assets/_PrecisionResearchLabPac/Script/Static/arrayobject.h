@@ -14,7 +14,7 @@ typedef struct {
 	SDType sdtype;		// new! NdArrayから取得出来るように変更予定
 } NdArray;
 
-NdArray* ndarray_create(int nd, int64_t *dimensions, int itemsize); //引数に既存のコレクションを指定
+NdArray* ndarray_create(int nd, int64_t *dimensions, int itemsize, SDType sdtype); //引数に既存のコレクションを指定
 NdArray* ndarray_empty(int row, int col, int itemsize); //未初期化での生成
 NdArray* ndarray_copy(NdArray *arr);
 NdArray* ndarray_convert(void *src, int nd, int64_t *dimensions, int itemsize, SDType sdtype);

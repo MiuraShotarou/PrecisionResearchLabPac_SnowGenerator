@@ -130,8 +130,12 @@ assign_ndarray_boolindexing(NdArray *src, NdArray *mask, NdArray *out_res)
         bool value;
         memcpy(&value, mask->data + f * mask->itemsize, sizeof(bool));
         // bool is true であればout_res に src の値を代入。out_resの形状が既に決まっているならば、順々にアクセスしていくだけで良い
-        if(value) {
-            memcpy(out_res->data + (res_i++ * out_res->itemsize * remaining), src->data + (f * src->itemsize * remaining), out_res->itemsize * remaining);
+        if (value) {
+			if (check_scalar(src)) {
+				memcpy(out_res->data + (res_i++ * out_res->itemsize * remaining), src->data, out_res->itemsize);
+			} else {
+            	memcpy(out_res->data + (res_i++ * out_res->itemsize * remaining), src->data + (f * src->itemsize * remaining), out_res->itemsize * remaining);
+			}
         }
     }
     // get 側でsrcの解放は行わない
@@ -193,7 +197,6 @@ assign_ndarray_fancyindexing(NdArray *src, NdArray *mask, NdArray *out_res)
             remaining *= src->dimensions[d];
         }
     }
-    
     // mask内のtrueをすべてコピーする
     int64_t mask_total = get_totalelements(mask->nd, mask->dimensions);
     int64_t res_i = 0;
@@ -209,9 +212,12 @@ assign_ndarray_fancyindexing(NdArray *src, NdArray *mask, NdArray *out_res)
             SET_ERROR_MESSAGE("assign_ndarray_fancyindexing: index out of range.");
             return;
         }
-        // bool is true であればout_res に src の値を代入。out_resの形状が既に決まっているならば、順々にアクセスしていくだけで良い
-        memcpy(out_res->data + (res_i++ * out_res->itemsize * remaining), src->data + (value * src->itemsize * remaining), out_res->itemsize * remaining);
-        
+		if (check_scalar(src)) {
+            memcpy(out_res->data + res_i++ * out_res->itemsize, src->data, out_res->itemsize);
+        } else {
+        	// bool is true であればout_res に src の値を代入。out_resの形状が既に決まっているならば、順々にアクセスしていくだけで良い
+            memcpy(out_res->data + (res_i++ * out_res->itemsize * remaining), src->data + (value   * src->itemsize * remaining), out_res->itemsize * remaining);
+        }
         // d_i & dim_i のインクリメント
         if (++dim_i == mask->dimensions[d_i]) {
             d_i++;
@@ -239,18 +245,13 @@ set_ndarray_advancedindexing(NdArray *out_src, NdArray *mask, NdArray *value)
     }
     // geter用 NdArrayを形状だけ一致させ新規生成
     // NdArray *result = ndarray_create(src->nd, src->dimensions, src->itemsize);
-    NdArray *src = NULL;
-    if (check_scalar(out_src))
-    {
-        NdArray *src = ndarray_copy(out_src);
-    }
     
     switch (mask->sdtype) {
         case Bool:
-            assign_ndarray_boolindexing(src, mask, out_src);//※
+            assign_ndarray_boolindexing(value, mask, out_src);
             break;
         case Int:
-            assign_ndarray_fancyindexing(src, mask, out_src);
+            assign_ndarray_fancyindexing(value, mask, out_src);
             break;
         case UInt:
         case Short:
@@ -260,7 +261,7 @@ set_ndarray_advancedindexing(NdArray *out_src, NdArray *mask, NdArray *value)
         case SByte:
         case Byte:
             SET_ERROR_MESSAGE("Casting to int type is recommended in the calling code.");
-            assign_ndarray_fancyindexing(src, mask, out_src);
+            assign_ndarray_fancyindexing(value, mask, out_src);
             break;
         default:
             SET_ERROR_MESSAGE("get_ndarray_advancedindexing: unsupported mask sdtype.");

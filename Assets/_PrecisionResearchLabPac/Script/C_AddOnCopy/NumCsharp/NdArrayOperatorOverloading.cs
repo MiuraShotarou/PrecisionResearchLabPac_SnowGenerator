@@ -1,6 +1,8 @@
 // NdArrayOperatorOverloading.cs
 using System;
+using System.Collections.Generic;
 using System.Runtime.InteropServices;
+using NUnit.Framework;
 using UnityEngine;
 
 namespace SnowflakeNative
@@ -15,7 +17,15 @@ namespace SnowflakeNative
         }
         public static implicit operator NdArray<T>(Array value) //array
         {
-            
+            return Packing(new NdArray<T>(), ArrayToNdArray(value));
+        }
+        public static implicit operator NdArray<T>(List<T> value) //List
+        {
+            // TODO
+        }
+        public static implicit operator NdArray<T>(Stack<T> value) //Stack
+        {
+            // TODO
         }
     }
 }

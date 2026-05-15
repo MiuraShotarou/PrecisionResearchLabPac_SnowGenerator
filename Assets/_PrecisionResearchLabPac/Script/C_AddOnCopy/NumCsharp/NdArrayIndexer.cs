@@ -4,6 +4,9 @@ using System.Runtime.InteropServices;
 
 namespace SnowflakeNative
 {
+    // ----------------------------------------------------------------
+    // AdvancedIndexing
+    // ----------------------------------------------------------------
     public interface INdArray
     {
         IntPtr _pointer { get; }
@@ -14,7 +17,7 @@ namespace SnowflakeNative
         [DllImport(DLL_Name, CallingConvention = CallingConvention.Cdecl)]
         protected static extern IntPtr get_ndarray_advancedindexing(IntPtr src, IntPtr mask);
         [DllImport(DLL_Name, CallingConvention = CallingConvention.Cdecl)]
-        protected static extern IntPtr set_ndarray_advancedindexing(IntPtr src, IntPtr mask, );
+        protected static extern void set_ndarray_advancedindexing(IntPtr src, IntPtr mask, IntPtr value);
         [DllImport(DLL_Name, CallingConvention = CallingConvention.Cdecl)]
         protected static extern IntPtr ndarray_convert(IntPtr src, int nd, long[] dimensions, int itemsize, SDType sdtype);
     }
@@ -26,16 +29,64 @@ namespace SnowflakeNative
         {
             get
             {
-                return Packing(new NdArray<T>(), get_ndarray_advancedindexing(this._pointer, mask._pointer));
+                IntPtr result = IntPtr.Zero;
+                SDType maskType = mask._sdtype;
+                switch (maskType)
+                {
+                    case SDType.Bool:
+                        result = get_ndarray_advancedindexing(this._pointer, mask._pointer);
+                        break;
+                    case SDType.Int:
+                        result = get_ndarray_advancedindexing(this._pointer, mask._pointer);
+                        break;
+                    case SDType.SByte:
+                    case SDType.Byte:
+                    case SDType.Short:
+                    case SDType.UShort:
+                    case SDType.UInt:
+                    case SDType.Long:
+                    case SDType.ULong:
+                        IntPtr maskPtr = np_ndarray_cast(mask._pointer, SDType.Int);
+                        result = get_ndarray_advancedindexing(this._pointer, maskPtr);
+                        ndarray_free(maskPtr);
+                        break;
+                    case SDType.Float:
+                    case SDType.Double:
+                        throw new NotSupportedException($"Floating point types cannot be used as indices: {maskType}"); //error:浮動小数点型はインデックスに使用できません
+                    default:
+                        throw new NotSupportedException($"Unsupported SDType for indexing: {maskType}");
+                }
+                return Packing(new NdArray<T>(), result);
             }
-            set // NdArrayOperatorOverloading.csの実装により、スカラーや配列もvalueに指定可能（配列はコンパイルエラーとなる）→ 配列などもセッターに指定できるようにしなければならない
+            set // NdArrayOperatorOverloading.csの実装により、スカラーや配列もvalueに指定可能
             {
                 // maskの型をint, boolで固定できるようにする
-                switch (mask._sdtype)
+                SDType maskType = mask._sdtype;
+                switch (maskType)
                 {
-                    
+                    case SDType.Bool:
+                        set_ndarray_advancedindexing(this._pointer, mask._pointer, value._pointer);
+                        break;
+                    case SDType.Int:
+                        set_ndarray_advancedindexing(this._pointer, mask._pointer, value._pointer);
+                        break;
+                    case SDType.SByte:
+                    case SDType.Byte:
+                    case SDType.Short:
+                    case SDType.UShort:
+                    case SDType.UInt:
+                    case SDType.Long:
+                    case SDType.ULong:
+                        IntPtr maskPtr = np_ndarray_cast(mask._pointer, SDType.Int);
+                        set_ndarray_advancedindexing(this._pointer, maskPtr, value._pointer);
+                        ndarray_free(maskPtr);
+                        break;
+                    case SDType.Float:
+                    case SDType.Double:
+                        throw new NotSupportedException($"Floating point types cannot be used as indices: {maskType}");
+                    default:
+                        throw new NotSupportedException($"Unsupported SDType for indexing: {maskType}");
                 }
-                this._pointer = set_ndarray_advancedindexing(this._pointer, mask._pointer, value); //破壊的操作で良いかも
             }
         }
         public NdArray<T> this[Array mask] //mask をNdArrayに変換する
@@ -81,6 +132,49 @@ namespace SnowflakeNative
         }
     }
 
+    public abstract partial class CSLanguageNative : CLanguageNative
+    {
+         
+    }
+    
+    // ----------------------------------------------------------------
+    // Slicing
+    // ----------------------------------------------------------------
+    [StructLayout(LayoutKind.Sequential)]
+    public struct SliceStruct
+    {
+        public int Start, Stop, Step;
+        public static implicit operator SliceStruct((int start, int stop, int step) t) => new SliceStruct { Start = t.start, Stop = t.stop, Step = t.step };
+        public static implicit operator SliceStruct((int start, int stop) t) => new SliceStruct { Start = t.start, Stop = t.stop, Step = 1 };
+        public static implicit operator SliceStruct(int start) => new SliceStruct { Start = start, Stop = start + 1, Step = 1 };
+    }
+    
+    public abstract partial class CLanguageNative
+    {
+        [DllImport(DLL_Name, CallingConvention = CallingConvention.Cdecl)]
+        protected static extern IntPtr 
+        [DllImport(DLL_Name, CallingConvention = CallingConvention.Cdecl)]
+        protected static extern void 
+        [DllImport(DLL_Name, CallingConvention = CallingConvention.Cdecl)]
+        protected static extern IntPtr 
+    }
+    
+    public partial class NdArray<T> : CSLanguageNative, INdArray where T : unmanaged
+    {
+        public NdArray<T> this[params SliceStruct[] slices]
+        {
+            get
+            {
+                IntPtr resultPtr = np_slice(this._pointer, slices, slices.Length);
+                return Packing(new NdArray<T>(), resultPtr);
+            }
+            set
+            {
+                np_slice_set(this._pointer, slices, slices.Length, value._pointer);
+            }
+        }
+    }
+    
     public abstract partial class CSLanguageNative : CLanguageNative
     {
          
