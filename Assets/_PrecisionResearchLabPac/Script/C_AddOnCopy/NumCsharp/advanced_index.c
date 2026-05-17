@@ -216,7 +216,7 @@ assign_ndarray_fancyindexing(NdArray *src, NdArray *mask, NdArray *out_res)
             memcpy(out_res->data + res_i++ * out_res->itemsize, src->data, out_res->itemsize);
         } else {
         	// bool is true であればout_res に src の値を代入。out_resの形状が既に決まっているならば、順々にアクセスしていくだけで良い
-            memcpy(out_res->data + (res_i++ * out_res->itemsize * remaining), src->data + (value   * src->itemsize * remaining), out_res->itemsize * remaining);
+            memcpy(out_res->data + (res_i++ * out_res->itemsize * remaining), src->data + (value * src->itemsize * remaining), out_res->itemsize * remaining);
         }
         // d_i & dim_i のインクリメント
         if (++dim_i == mask->dimensions[d_i]) {

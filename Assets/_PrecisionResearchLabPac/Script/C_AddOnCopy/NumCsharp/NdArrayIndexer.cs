@@ -152,11 +152,9 @@ namespace SnowflakeNative
     public abstract partial class CLanguageNative
     {
         [DllImport(DLL_Name, CallingConvention = CallingConvention.Cdecl)]
-        protected static extern IntPtr 
+        protected static extern IntPtr get_ndarray_slicing(IntPtr src, SliceStruct[] slices, int slice_nd);
         [DllImport(DLL_Name, CallingConvention = CallingConvention.Cdecl)]
-        protected static extern void 
-        [DllImport(DLL_Name, CallingConvention = CallingConvention.Cdecl)]
-        protected static extern IntPtr 
+        protected static extern void set_ndarray_slicing(IntPtr src, SliceStruct[] slices, int slice_nd, IntPtr value);
     }
     
     public partial class NdArray<T> : CSLanguageNative, INdArray where T : unmanaged
@@ -165,12 +163,12 @@ namespace SnowflakeNative
         {
             get
             {
-                IntPtr resultPtr = np_slice(this._pointer, slices, slices.Length);
+                IntPtr resultPtr = get_ndarray_slicing(this._pointer, slices, slices.Length);
                 return Packing(new NdArray<T>(), resultPtr);
             }
             set
             {
-                np_slice_set(this._pointer, slices, slices.Length, value._pointer);
+                set_ndarray_slicing(this._pointer, slices, slices.Length, value._pointer);
             }
         }
     }

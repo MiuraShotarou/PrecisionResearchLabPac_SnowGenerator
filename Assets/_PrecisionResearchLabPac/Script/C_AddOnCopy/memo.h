@@ -17,7 +17,7 @@ for (int i = 0; i < 総要素数; i++) {
 
 // ストライドを使った要素アクセス
 int64_t distance = ndarray->strides[nd_i]; //nd_i(指定した次元)に該当する配列内で、要素同士が多次元配列全体で見たときに何バイト離れているか。→ [a, b, c, d, a, b, c, d] → a → a == 4
-var value = ndarray->data + distance * dim_i; //dim_i(その次元内でのindex)
+var value = ndarray->data + distance * f_i; //f_i(配列全体でのindex)
 
 get_indices(totalelements -1, dimensions, nd, int64_t[64] *) //indices とは、一次元配列にした際のindexを指定すると、多次元配列時のindexを返してくれる変数
 

@@ -112,3 +112,5 @@ check_scalar(NdArray *arr)
 	}
 	return true;
 }
+
+static 
