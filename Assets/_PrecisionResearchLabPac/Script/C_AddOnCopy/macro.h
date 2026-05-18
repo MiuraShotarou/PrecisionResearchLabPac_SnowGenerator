@@ -13,4 +13,7 @@
 #define NDARRAY_MAX_ND         64
 #define NDARRAY_MAX_DIMENSIONS 64
 
+/* np_where */
+#define INDICES_DEFAULT_ND 2
+
 #endif

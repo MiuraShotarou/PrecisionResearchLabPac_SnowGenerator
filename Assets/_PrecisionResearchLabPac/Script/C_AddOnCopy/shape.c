@@ -311,6 +311,25 @@ merge_arrays_along_axis(NdArray **srcs, int array_count, int axis, int itemsize,
 }
     
 static NdArray*
+np_ravel(NdArray *src)
+{
+    if (src == NULL) {
+        return NULL;
+    }
+    
+    int nd = 1;
+    int64_t dimensions[64];
+    int64_t total = get_totalelements(src->nd, src->dimensions);
+    dimensions[0] = total;
+    
+    NdArray *result = ndarray_create(nd, dimensions, src->itemsize, src->sdtype);
+    
+    memcpy(result->data, src->data, total * src->itemsize);
+        
+    return result;
+}
+
+static NdArray*
 np_reshape(NdArray *src, int64_t *size, int size_nd)
 {
     int64_t src_total = get_totalelements(src->dimensions, src->nd);

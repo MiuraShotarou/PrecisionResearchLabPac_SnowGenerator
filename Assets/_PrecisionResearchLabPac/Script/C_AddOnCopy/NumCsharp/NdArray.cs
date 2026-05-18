@@ -18,6 +18,7 @@ using Cysharp.Threading.Tasks;
 /// <summary> IDisposableインターフェイスの実装を検討 </summary>
 /// <summary> CSLanguageNativeクラス内でジェネリクスを使用しない書き方にリファクタしたい </summary>
 /// <summary> だいぶ先の話だが、Add関数やRemove関数も追加したいな </summary>
+/// <summary> np_whereのindicesの戻り値を、出来ればNdArray<int>と<long>で自動切り替えができるように変更したいな </summary>
 namespace SnowflakeNative
 {
     /// <summary> Collection is NdArray </summary>
@@ -84,11 +85,13 @@ namespace SnowflakeNative
         public static NdArray<TResult> DArange<TResult>(double start, double end, double step, char order) where TResult : unmanaged => Packing<TResult>(new NdArray<TResult>(), CSDArange<TResult>(start, end, step, order));
         /// <summary> RandomChoice </summary>
         public static NdArray<TResult> RandomChoice<TResult>(NdArray<TResult> src, long[] size, bool replace = true, float[] p = null) where TResult : unmanaged => Packing<TResult>(new NdArray<TResult>(), CSRandomChoice<TResult>(src._pointer, size, replace, p));
-        
+        /// <summary> Ravel </summary>
+        public static NdArray<TResult> Reshape<TResult>(NdArray<TResult> src) where TResult : unmanaged => Packing(src, CSRavel(src._pointer));
         /// <summary> Reshape </summary>
         public static NdArray<TResult> Reshape<TResult>(NdArray<TResult> src, long[] size) where TResult : unmanaged => Packing(src, CSReshape(src._pointer, size));
-        /// <summary> Where 相性が悪いのでパス </summary>
-        
+        /// <summary> Where </summary>
+        public static NdArray<TResult> Where<TResult>(NdArray<bool> conditions, NdArray<TResult> trueValue, NdArray<TResult> falseValue) where TResult : unmanaged => Packing(new NdArray<TResult>(), CSWhere(conditions._pointer, trueValue._pointer, falseValue._pointer));
+        public static NdArray<int> Where(NdArray<bool> conditions) => Packing(new NdArray<int>(), CSWhere(conditions._pointer));
         /// <summary> Sum </summary>
         public static NdArray<TResult> Sum<TSource, TResult>(NdArray<TSource> src, int axis = -1, bool keepdims = false) where TSource : unmanaged where TResult : unmanaged => Packing<TResult>(new NdArray<TResult>(), CSSum<TSource, TResult>(src._pointer, axis, keepdims));
         public static TResult Sum<TSource, TResult>(NdArray<TSource> src) where TSource : unmanaged where TResult : unmanaged => CSSum<TSource, TResult>(src._pointer);
@@ -214,16 +217,39 @@ namespace SnowflakeNative
             double result = np_sum_return_scalar(pointer, srcType);
             return (TResult)Convert.ChangeType(result, typeof(TResult));
         }
+        protected static IntPtr CSRavel(IntPtr pointer)
+        {
+            return np_ravel(pointer);
+        }
         protected static IntPtr CSReshape(IntPtr pointer, long[] size)
         {
             int size_nd = size.Length;
             return np_reshape(pointer, size, size_nd);
         }
         /// <summary> Resize </summary>
-        protected static IntPtr CSResize<TResult>(IntPtr pointer, long[] size) where TResult : unmanaged
+        protected static IntPtr CSResize(IntPtr pointer, long[] size)
         {
             int size_nd = size.Length;
             IntPtr result = np_resize(pointer, size, size_nd);
+            // if (result == IntPtr.Zero) {
+            //     throw new InvalidOperationException(GetErrorMessage());
+            // }
+            return result;
+        }
+        /// <summary> Where </summary>
+        protected static IntPtr CSWhere(IntPtr conditions, IntPtr trueValue, IntPtr falseValue) //return x or y
+        {
+            // conditions.sdtype == bool
+            IntPtr result = np_where(conditions, trueValue, falseValue);
+            // if (result == IntPtr.Zero) {
+            //     throw new InvalidOperationException(GetErrorMessage());
+            // }
+            return result;
+        }
+        protected static IntPtr CSWhere(IntPtr conditions) //return int_ndarray
+        {
+            // conditions.sdtype == bool
+            IntPtr result = np_where(conditions, IntPtr.Zero, IntPtr.Zero);
             // if (result == IntPtr.Zero) {
             //     throw new InvalidOperationException(GetErrorMessage());
             // }
@@ -415,7 +441,7 @@ namespace SnowflakeNative
         // ----------------------------------------------------------------
         /// <summary> Where </summary>
         [DllImport(DLL_Name, CallingConvention = CallingConvention.Cdecl)]
-        protected static extern IntPtr np_where(IntPtr condition, IntPtr x, IntPtr y, SDType sdtype);
+        protected static extern IntPtr np_where(IntPtr condition, IntPtr x, IntPtr y);
         /// <summary> LogicalAnd </summary>
         [DllImport(DLL_Name, CallingConvention = CallingConvention.Cdecl)]
         protected static extern IntPtr np_logical_and(IntPtr a, IntPtr b);

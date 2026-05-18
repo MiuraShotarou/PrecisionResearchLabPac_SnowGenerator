@@ -27,10 +27,10 @@ void double_to_double (char *dest, double value);
 int itemsize_cast_by_sdtype (SDType sdtype);
 
 // 配列の総要素数を取得するメソッド
-int64_t get_totalelements(int64_t *size, int size_nd);
+int64_t get_totalelements(int size_nd, int64_t *size);
 
 // 配列を一次元化した際の末尾インデクスを取得するメソッド
-static int64_t get_last_flat(int64_t *size, int size_nd);
+static int64_t get_last_flat(int size_nd, int64_t *size);
 
 // flatを引数に渡して、indicesを取得するメソッド
 static void get_indices(int nd, int64_t *dimensions, int64_t flat, int64_t *out_indices); //out_indices == int64_t *[64]

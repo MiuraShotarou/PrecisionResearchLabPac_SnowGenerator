@@ -334,6 +334,124 @@ np_pad(NdArray *src, int32_t pad_width, PadModeType mode, double value, SDType r
             src->itemsize
         );
     }
-
     return result;
+}
+
+static NdArray*
+np_where(NdArray *conditions, NdArray *a, NdArray *b)
+{
+	if (conditions == NULL) {
+		SET_ERROR_MESSAGE("np_where: src is NULL.");
+		return NULL;
+	}
+
+	if (conditions->sdtype != Bool) {
+		SET_ERROR_MESSAGE("np_where: conditions should be Bool.");
+		return NULL;
+	}
+
+	if (a == NULL && b == NULL) {
+		// return conditions tuple
+		// condisionsのture部分のindexを取得する
+		int64_t indices_count = 0;
+		int64_t indices_array[64][64];
+		int64_t total = get_totalelements(conditions->nd, conditions->dimensions);
+		for (int f = 0; f < total; f++) {
+			bool condition;
+			memcpy(&condition, conditions->data + f * conditions->itemsize, sizeof(bool));
+			if (condition) {
+				get_indices(conditions->nd, conditions->dimensions, f, indices_array[indices_count++]);
+			}
+		}
+		// result用ndarrayの生成
+		NdArray *result = indicesndarray_create((int64_t)conditions->nd, indices_count);
+		
+		memcpy(result->data, indices_array, result->dimensions[0] * result->dimensions[1] * sizeof(int64_t));
+		return result;
+
+	} else if (a != NULL && b != NULL){
+		// return conditions value
+		if (a->sdtype != b->sdtype) {//C#のコンパイルで弾かれる条件
+			SET_ERROR_MESSAGE("np_where: sdtype mismatch between trueValue and falseValue.");
+			return NULL;
+		}
+		
+		int nd = 0;
+		int64_t dimensions[64];
+		// conditions,a,bの形状が一致 or 1 であればOk
+		NdArray *arrays[] = { conditions, a, b };
+		bool valid = checkshape_and_decideshape(arrays, 3, &nd, dimensions);
+		if (!valid) {
+			// error メッセージ
+			return NULL;
+		}
+
+		// result用ndarrayの作成
+		NdArray *result = ndarray_create(nd, dimensions, a->itemsize, a->sdtype);
+		// a,b指定がある場合のwhereの計算処理
+		int64_t total = get_totalelements(conditions->nd, conditions->dimensions);
+		for (int f = 0; f < total; f++) {
+			bool condition;
+			memcpy(&condition, conditions->data + f * conditions->itemsize, sizeof(bool));
+			// resultへの代入
+			if (condition) {
+				memcpy(result->data + f * result->itemsize, check_scalar(a)? a->data : a->data + f * a->itemsize, result->itemsize);
+			} else {
+				memcpy(result->data + f * result->itemsize, check_scalar(b)? b->data : b->data + f * b->itemsize, result->itemsize);
+			}
+		}
+		return result;
+	}
+	// 条件にNdArrayが指定された際の処理は、indexingの関数を流用できる → できるとすればboolindexingだけかな。== 演算子ならfancyも利用できるね → operator_overload関数群に処理を移して、indexingはそれを呼び出す設計にすると可読性が上がるかも
+	// 条件の部分で、何が引数に渡されてくるかわからない。そう考えると、whereの中で引数の型に合わせて条件分岐する必要がある。→ C#側ですべての条件をNdArray<bool>に変換する。CNative.np_whereではそのNdArray<bool>を引数に受け取り、実装を行う方針で。
+	// 条件のみを引数に渡した際は、trueのindicesをタプルに変換して戻り値に返し、第一・第二引数を指定した場合はndarrayを戻り値に返す仕様。→ 条件のみの場合でもNdArray<T>(indices)を返す仕様にしよう
+	// 第一・第二引数は、C#側が必ずNdArrayに変換するため問題ない
+}
+
+static NdArray*
+indicesndarray_create(int64_t indices_nd, int64_t indices_count)
+{
+	// ndは固定値, dimenions[0]は計算が必要, [1]はwhereの場合不要。他から呼び出す場合はわからない
+	int nd = INDICES_DEFAULT_ND; //2
+	int64_t dimensions[INDICES_DEFAULT_ND];
+	dimensions[0] = indices_count;
+	dimensions[1] = indices_nd;
+	NdArray *result = ndarray_create(nd, dimensions, sizeof(int64_t), Long);
+	return result;
+}
+
+static bool
+checkshape_and_decideshape(NdArray **arrays, int array_count, int *out_nd, int64_t *out_dimensions)
+{
+	int ref_nd = 1;
+	int64_t ref_dims[64];
+	ref_dims[0] = 1;
+	// 基準となる形状を取得
+    for (int i = 0; i < array_count; i++) {
+        if (check_scalar(arrays[i])) {
+			continue; // scalar is skip
+		}
+        ref_nd = arrays[i]->nd;
+        memcpy(ref_dims, arrays[i]->dimensions, sizeof(int64_t) * arrays[i]->nd);
+        break;
+    }
+    // 形状チェック
+    for (int i = 0; i < array_count; i++) {
+        if (check_scalar(arrays[i])) {
+			 continue;
+		}
+        if (arrays[i]->nd != ref_nd) {
+            SET_ERROR_MESSAGE("check_shape: nd mismatch.");
+            return false;
+        }
+        for (int d = 0; d < ref_nd; d++) {
+            if (arrays[i]->dimensions[d] != ref_dims[d]) {
+                SET_ERROR_MESSAGE("check_shape: dimensions mismatch.");
+                return false;
+            }
+        }
+    }
+	*out_nd = ref_nd;
+	memcpy(out_dimensions, ref_dims, sizeof(int64_t) * ref_nd);
+    return true;
 }

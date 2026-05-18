@@ -99,7 +99,7 @@ get_indices(int nd, int64_t *dimensions, int64_t flat, int64_t *out_indices)
     int64_t tmp = flat;
     for (int d = nd - 1; d > -1; d--) {
         out_indices[d] = tmp % dimensions[d];
-        tmp /= dimensions[d];s
+        tmp /= dimensions[d];
     }
 }
 
