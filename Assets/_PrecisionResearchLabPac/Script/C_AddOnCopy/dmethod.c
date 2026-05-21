@@ -1,43 +1,3 @@
-#define NPY_NO_DEPRECATED_API NPY_API_VERSION
-#define _MULTIARRAYMODULE
-
-#define PY_SSIZE_T_CLEAN
-#include <Python.h>
-#include <structmember.h>
-
-#include "numpy/arrayobject.h"
-#include "numpy/arrayscalars.h"
-
-#include "arrayobject.h"
-#include "arrayfunction_override.h"
-#include "npy_argparse.h"
-#include "npy_config.h"
-#include "npy_pycompat.h"
-#include "npy_import.h"
-#include "ufunc_override.h"
-#include "array_coercion.h"
-#include "common.h"
-#include "templ_common.h" /* for npy_mul_sizes_with_overflow */
-#include "ctors.h"
-#include "calculation.h"
-#include "convert_datatype.h"
-#include "descriptor.h"
-#include "dtypemeta.h"
-#include "item_selection.h"
-#include "conversion_utils.h"
-#include "shape.h"
-#include "strfuncs.h"
-#include "array_assign.h"
-#include "npy_dlpack.h"
-#include "npy_static_data.h"
-#include "multiarraymodule.h"
-
-#include "methods.h"
-#include "alloc.h"
-#include "array_api_standard.h"
-
-#include <stdarg.h>
-
 arange
 choice
 np.full
@@ -51,6 +11,28 @@ copy
 //} NdArray;
 
 static NdArray *
-np_d_arange(double start, double end, int itemsize, char order){
-	
+np_d_arange(double start, double end, double step, SDType sdtype, char order)
+{
+	int nd = 1;
+	int64_t dimensions[1] = {(end - start) / step};
+	int itemsize = itemsize_cast_by_sdtype(sdtype);
+	if (itemsize == -1) {
+		return NULL;
+	}
+
+	NdArray *result = ndarray_create(nd, dimensions, itemsize);
+	if (result == NULL) {
+		return NULL;
+	}
+
+	DoubleScalarCast doublescalarcast = doublescalar_cast_by_sdtype[sdtype];
+	if (doublescalarcast == NULL) {
+		return NULL;
+	}
+	for (double i = 0; i < dimensions[0]; i++) {
+		double value = start + i * step;
+		doublescalarcast(result->data + i * itemsize, value);
+	}
+
+	return result;
 }

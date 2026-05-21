@@ -7,6 +7,11 @@ using UnityEngine;
 
 namespace SnowflakeNative
 {
+    public abstract partial class CSLanguageNative : CLanguageNative
+    {
+         
+    }
+    
     public partial class NdArray<T> : CSLanguageNative, INdArray where T : unmanaged
     {
         // value == structを不可に、stringを有りにする。valueに参照型を渡すことはできない
@@ -31,6 +36,7 @@ namespace SnowflakeNative
         // 算術演算子
         // ----------------------------------------------------------------
         public static NdArray<T> operator +(NdArray<T> left, NdArray<T> right)   => Packing(new NdArray<T>(), np_add(left._pointer, right._pointer));
+        // public static NdArray<T> operator +(NdArray<T> left, NdArray<T> right)   => Packing(new NdArray<T>(), np_add(left._pointer, right._pointer));
 
         public static NdArray<T> operator -(NdArray<T> left, NdArray<T> right)   => Packing(new NdArray<T>(), np_subtract(left._pointer, right._pointer));
 

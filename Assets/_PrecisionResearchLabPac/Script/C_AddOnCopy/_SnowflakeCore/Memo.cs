@@ -1,18 +1,50 @@
+using System;
 using System.Linq;
 using UnityEngine;
 using System.Collections.Generic;
 using SnowflakeNative;
+
+namespace SnowflakeNative
+{
+
+}
 
 public class Memo : MonoBehaviour
 {
     private void Awake()
     {
         var hoge = new NdArray<int>(new long[]{3, 4});
-        var list = new List<int>();
+        var list = new List<float>();
+        INdArray Ihoge = new NdArray<int>(new long[]{3, 4});
+        CSLanguageNative kk = new NdArray<int>(new long[]{3, 4});
+        var Ihoge_p = Ihoge._pointer; //internalで阻止する予定
+
+        var zeros_f = NdArray<float>.Zeros(new long[] { 3, 4 });
+        var fuga = zeros_f.Cast<int>();
+        zeros_f = new long[]{3, 4};
         
-        // hoge.
+        var zeros_i = NdArray<int>.Zeros(new long[] { 3, 4 });
+        zeros_i = zeros_i.Sum();
+        var zeros_scalar_f = zeros_i.Sum();
+
+        // list = new List<int>();
+        hoge.Ravel();
+        hoge = hoge.NdArrayCopy();
+        NdArray<float>.Dispose(zeros_f);
     }
-    
+
+    private void Start()
+    {
+        NdArray<float> a = new NdArray<float>(new long[]{3, 4});
+        NdArray<float> b = new NdArray<float>(new long[]{3, 4});
+        NdArray<bool> conditions = new NdArray<bool>(new long[]{3, 4});
+        
+        var result = NdArray.Where(conditions, a, b);
+
+
+        var arange_i = NdArray.Arange(1,1,1,'d');
+    }
+
     //アプローチ① 結晶の移動のみECS, Mesh生成はUniTaskで実行する
     // 期待する動作：Meshの生成 → GameObjectの生成 → すべてのGameObjectが生成し終えたら、Positionの初期化と移動処理を適用する
     // trianglesとverticesを１次元配列で管理するのはあり

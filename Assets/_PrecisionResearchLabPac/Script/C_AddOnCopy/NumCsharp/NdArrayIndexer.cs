@@ -9,8 +9,8 @@ namespace SnowflakeNative
     // ----------------------------------------------------------------
     public interface INdArray
     {
-        IntPtr _pointer { get; }
-        SDType _sdtype { get; }
+        internal IntPtr _pointer { get; }
+        internal SDType _sdtype { get; }
     }
     public abstract partial class CLanguageNative
     {

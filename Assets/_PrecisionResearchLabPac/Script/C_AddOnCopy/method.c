@@ -181,7 +181,7 @@ np_random_choice(NdArray *src, int64_t *size, int size_nd, bool replace, float *
 }
 
 static double
-np_sum_return_scalar(NdArray *src, SDType srctype)
+np_sum_return_scalar(NdArray *src, SDType srctype) //引数のsdtypeを削除予定
 {
     NdArray *cast_array = np_ndarray_cast(src, srctype, Double);
     if (cast_array == NULL) {
@@ -202,7 +202,7 @@ np_sum_return_scalar(NdArray *src, SDType srctype)
 }
 
 static NdArray *
-np_sum_return_array(NdArray *src, SDType srctype, SDType restype, int32_t axis, bool keepdims)
+np_sum_return_array(NdArray *src, SDType srctype, SDType restype, int32_t axis, bool keepdims) //引数のsdtypeを削除予定
 {
     /* conditions scalar */
     if (axis == -1) {
@@ -433,7 +433,7 @@ get_ndarray_where(NdArray *conditions, NdArray *a, NdArray *b)
 }
 
 static bool
-checkshape_and_decideshape(NdArray **arrays, int array_count, int *out_nd, int64_t *out_dimensions)
+checkshape_and_decideshape(NdArray **arrays, int array_count, int *out_nd, int64_t *out_dimensions) //形状の完全一致 or スカラーを許容
 {
 	int ref_nd = 1;
 	int64_t ref_dims[64];
