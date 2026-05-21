@@ -31,24 +31,14 @@ namespace SnowflakeNative
         // 算術演算子
         // ----------------------------------------------------------------
         public static NdArray<T> operator +(NdArray<T> left, NdArray<T> right)   => Packing(new NdArray<T>(), np_add(left._pointer, right._pointer));
-        public static NdArray<T> operator +(NdArray<T> left, T right)            => Packing(new NdArray<T>(), np_add_scalar(left._pointer, right));
-        public static NdArray<T> operator +(T left, NdArray<T> right)            => Packing(new NdArray<T>(), np_add_scalar(right._pointer, left));
 
         public static NdArray<T> operator -(NdArray<T> left, NdArray<T> right)   => Packing(new NdArray<T>(), np_subtract(left._pointer, right._pointer));
-        public static NdArray<T> operator -(NdArray<T> left, T right)            => Packing(new NdArray<T>(), np_subtract_scalar(left._pointer, right));
-        public static NdArray<T> operator -(T left, NdArray<T> right)            => Packing(new NdArray<T>(), np_subtract_scalar_left(left, right._pointer));
 
         public static NdArray<T> operator *(NdArray<T> left, NdArray<T> right)   => Packing(new NdArray<T>(), np_multiply(left._pointer, right._pointer));
-        public static NdArray<T> operator *(NdArray<T> left, T right)            => Packing(new NdArray<T>(), np_multiply_scalar(left._pointer, right));
-        public static NdArray<T> operator *(T left, NdArray<T> right)            => Packing(new NdArray<T>(), np_multiply_scalar(right._pointer, left));
 
         public static NdArray<T> operator /(NdArray<T> left, NdArray<T> right)   => Packing(new NdArray<T>(), np_divide(left._pointer, right._pointer));
-        public static NdArray<T> operator /(NdArray<T> left, T right)            => Packing(new NdArray<T>(), np_divide_scalar(left._pointer, right));
-        public static NdArray<T> operator /(T left, NdArray<T> right)            => Packing(new NdArray<T>(), np_divide_scalar_left(left, right._pointer));
 
         public static NdArray<T> operator %(NdArray<T> left, NdArray<T> right)   => Packing(new NdArray<T>(), np_modulo(left._pointer, right._pointer));
-        public static NdArray<T> operator %(NdArray<T> left, T right)            => Packing(new NdArray<T>(), np_modulo_scalar(left._pointer, right));
-        public static NdArray<T> operator %(T left, NdArray<T> right)            => Packing(new NdArray<T>(), np_modulo_scalar_left(left, right._pointer));
 
         public static NdArray<T> operator -(NdArray<T> src)                      => Packing(new NdArray<T>(), np_negative(src._pointer));
 

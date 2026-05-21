@@ -91,7 +91,7 @@ namespace SnowflakeNative
         public static NdArray<TResult> Reshape<TResult>(NdArray<TResult> src, long[] size) where TResult : unmanaged => Packing(src, CSReshape(src._pointer, size));
         /// <summary> Where </summary>
         public static NdArray<TResult> Where<TResult>(NdArray<bool> conditions, NdArray<TResult> trueValue, NdArray<TResult> falseValue) where TResult : unmanaged => Packing(new NdArray<TResult>(), CSWhere(conditions._pointer, trueValue._pointer, falseValue._pointer));
-        public static NdArray<int> Where(NdArray<bool> conditions) => Packing(new NdArray<int>(), CSWhere(conditions._pointer));
+        public static NdArray<long> Where(NdArray<bool> conditions) => Packing(new NdArray<long>(), CSWhere(conditions._pointer));
         /// <summary> Sum </summary>
         public static NdArray<TResult> Sum<TSource, TResult>(NdArray<TSource> src, int axis = -1, bool keepdims = false) where TSource : unmanaged where TResult : unmanaged => Packing<TResult>(new NdArray<TResult>(), CSSum<TSource, TResult>(src._pointer, axis, keepdims));
         public static TResult Sum<TSource, TResult>(NdArray<TSource> src) where TSource : unmanaged where TResult : unmanaged => CSSum<TSource, TResult>(src._pointer);
@@ -246,7 +246,7 @@ namespace SnowflakeNative
             // }
             return result;
         }
-        protected static IntPtr CSWhere(IntPtr conditions) //return int_ndarray
+        protected static IntPtr CSWhere(IntPtr conditions) //return long_ndarray
         {
             // conditions.sdtype == bool
             IntPtr result = np_where(conditions, IntPtr.Zero, IntPtr.Zero);
@@ -486,6 +486,12 @@ namespace SnowflakeNative
         /// <summary> Divide </summary>
         [DllImport(DLL_Name, CallingConvention = CallingConvention.Cdecl)]
         protected static extern IntPtr np_divide(IntPtr a, IntPtr b, SDType sdtype);
+        /// <summary> Modulo </summary>
+        [DllImport(DLL_Name, CallingConvention = CallingConvention.Cdecl)]
+        protected static extern IntPtr np_modulo(IntPtr a, IntPtr b);
+        /// <summary> Negative </summary>
+        [DllImport(DLL_Name, CallingConvention = CallingConvention.Cdecl)]
+        protected static extern IntPtr np_negative(IntPtr src);
 
         // ----------------------------------------------------------------
         // ランダム系
