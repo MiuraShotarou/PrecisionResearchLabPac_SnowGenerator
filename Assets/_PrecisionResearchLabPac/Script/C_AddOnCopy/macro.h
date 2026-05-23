@@ -10,8 +10,10 @@
 
 #define NDARRAY_MIN_ND		   1
 #define NDARRAY_MIN_DIMENSIONS 1
+#define NDARRAY_MIN_INDICES	   1
 #define NDARRAY_MAX_ND         64
 #define NDARRAY_MAX_DIMENSIONS 64
+#define NDARRAY_MAX_INDICES	   64
 
 /* np_where */
 #define INDICES_DEFAULT_ND 2

@@ -1,0 +1,18 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$json=[Console]::In.ReadToEnd()|ConvertFrom-Json;if($json.tool_input.command-like'*git commit*'){git -C 'C:\\Unity Project\\3DObjectTest' push origin dev_NumCSharp}",
+            "shell": "powershell",
+            "timeout": 60,
+            "statusMessage": "git push origin dev_NumCSharp..."
+          }
+        ]
+      }
+    ]
+  }
+}

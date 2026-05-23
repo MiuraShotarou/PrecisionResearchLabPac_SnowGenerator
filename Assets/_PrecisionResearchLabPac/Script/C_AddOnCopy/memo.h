@@ -2,6 +2,10 @@
 
 // int itemsize = itemsize_cast_by_sdtype(sdtype)
 
+// コンテナの0初期化処理
+memset(初期化元, 0, sizeof(初期化元));
+//memset(src_indices, 0, sizeof(src_indices));
+
 // C# long[]で行列指定した配列の総要素数計算 → {
     int64_t total = 1;
     for (int i = 0; i < size_nd; i++) {
@@ -19,7 +23,7 @@ for (int i = 0; i < 総要素数; i++) {
 int64_t distance = ndarray->strides[nd_i]; //nd_i(指定した次元)に該当する配列内で、要素同士が多次元配列全体で見たときに何バイト離れているか。→ [a, b, c, d, a, b, c, d] → a → a == 4
 var value = ndarray->data + distance * f_i; //f_i(配列全体でのindex)
 
-get_indices(totalelements -1, dimensions, nd, int64_t[64] *) //indices とは、一次元配列にした際のindexを指定すると、多次元配列時のindexを返してくれる変数
+get_indices(int nd, int64_t *dimensions, int64_t flat, int64_t *out_indices) //indices とは、一次元配列にした際のindexを指定すると、多次元配列時のindexを返してくれる変数
 
 // フラット → 多次元
 for (int d = nd - 1; d > -1; d--) { //nd == 10 → for(9 ~ 0)

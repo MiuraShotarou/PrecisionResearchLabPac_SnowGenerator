@@ -437,6 +437,7 @@ checkshape_and_decideshape(NdArray **arrays, int array_count, int *out_nd, int64
 {
 	int ref_nd = 1;
 	int64_t ref_dims[64];
+    memset(ref_dims, 0, sizeof(ref_dims));
 	ref_dims[0] = 1;
 	// 基準となる形状を取得
     for (int i = 0; i < array_count; i++) {
@@ -466,4 +467,29 @@ checkshape_and_decideshape(NdArray **arrays, int array_count, int *out_nd, int64
 	*out_nd = ref_nd;
 	memcpy(out_dimensions, ref_dims, sizeof(int64_t) * ref_nd);
     return true;
+}
+
+static NdArray*
+np_broadcast_to(NdArray *src, int64_t *dist_dimensions, int dist_nd)
+{
+    if (src == NULL) {
+        SET_ERROR_MESSAGE("np_broadcast_to: src is NULL.");
+        return NULL;
+    }
+    
+    /* check can broadcast */
+    if (!)
+    
+    /* create result ndarray */
+    NdArray *result = ndarray_copy(src);
+    
+    /* add dimensions */
+    if (src->nd < dist_nd) {
+        result->nd = dist_nd;
+        assgin_
+    } else if ()
+    /* adjust strides */
+    
+    /*  */
+    assign_broadcastingstrides(int nd, int64_t *src->dimensions, result->strides)
 }

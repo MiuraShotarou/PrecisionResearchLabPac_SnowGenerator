@@ -23,6 +23,9 @@ void double_to_ulong  (char *dest, double value);
 void double_to_float  (char *dest, double value);
 void double_to_double (char *dest, double value);
 
+// 各scalarをdouble型に変換するメソッドの宣言
+
+
 // SDTypeを入れるとitemsizeがわかるメソッドの宣言 ○
 int itemsize_cast_by_sdtype (SDType sdtype);
 

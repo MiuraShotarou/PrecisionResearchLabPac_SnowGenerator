@@ -97,8 +97,8 @@ static void
 get_indices(int nd, int64_t *dimensions, int64_t flat, int64_t *out_indices)
 {
     int64_t tmp = flat;
-    for (int d = nd - 1; d > -1; d--) {
-        out_indices[d] = tmp % dimensions[d];
+    for (int d = nd - 1; d > -1; d--) { // nd == 3, dimensions == {3, 1, 4}, flat = 24
+        out_indices[d] = tmp % dimensions[d] //
         tmp /= dimensions[d];
     }
 }
@@ -110,8 +110,8 @@ get_flat(int nd, int64_t *dimensions, int64_t *indices)
     int64_t flat = 0;
     int64_t stride = 1;
     for (int d = nd - 1; d > -1; d--) {
-        flat += indices[d] * stride;
-        stride *= dimensions[d];
+        flat += indices[d] * stride; //f = 3 * 1 == 3 ①, f = 3 * 3 == 9 ②, f = 4 * 3 == 12 ③ → f == 3 + 9 + 12 = 24
+        stride *= dimensions[d];	 //stride = 1 * 3 == 3 ①, 3 * 1 == 3 ②, 4 * 3 == 12 ③ 
     }
     return flat;
 }

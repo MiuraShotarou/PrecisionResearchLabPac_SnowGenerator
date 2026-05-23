@@ -7,12 +7,12 @@ using Cysharp.Threading.Tasks;
 /// <summary> 基本仕様 </summary>
 // 静的型付け言語として実装する(ジェネリクスが異なるNdArray<T>同士の処理は原則行わない)
 // ユーザーが明示していない型変換は禁止
-// 式の右辺に複数のコンテナ(NdArray<T>, C#標準配列など)がある場合、戻り値の形状は必ず右辺のコンテナの中で最大の形状と同じになる
+// 式の右辺に複数のコンテナ(NdArray<T>, C#標準配列など)がある場合、戻り値の形状は必ず右辺のコンテナの中で最大の形状と同じになる（ブロードキャスト）
+// 配列において次元の要素数が0若しくは1の時、その次元同士の計算では下位の次元をコピーして演算する。次元の要素数が2以上で演算対象の要素数がその値よりも大きかった場合、少ない方の要素については無かったことにして計算される（ブロードキャスト）
 // ユーザーの指定無しに破壊的操作は行わない
 // NdArray<T>クラスの生成関数はジェネリクスの指定を強制し、それ以外はNdArray.の記述で呼び出しが可能
 // NdArray<T>の破壊的操作を伴うメソッドは(関数名)+(NdArray<T>引数)の書き方で呼び出し可能
 // Tにはunmanaged型と、string型を指定可能
-
 
 /// <summary> _pointer のnullチェックを忘れずに記述すること </summary>
 /// <summary> 現状、where T : unmanagedの付与により、Tへ参照型（stringなど）を渡すことができない </summary>
@@ -94,6 +94,8 @@ namespace SnowflakeNative
         public NdArray<TResult> Cast<TResult>() where TResult : unmanaged => Packing(new NdArray<TResult>(), CSArrayCast<T, TResult>(this._pointer));
         /// <summary> Pad </summary>
         public NdArray<T> Pad(int pad_width, PadModeType mode, double value) => Packing(new NdArray<T>(), CSPad<T>(this._pointer, pad_width, mode, value));
+        /// <summary> BroadcastTo </summary>
+        public NdArray<T> BroadcastTo(long[] size) => Packing(new NdArray<T>(), CSBroadcastTo(this._pointer, size));
         
         /// <summary> no instance method compulsion T </summary> //NdArray<T>.(メソッド名)でメソッド内のTを強制指定
         /// <summary> Zeros </summary>
@@ -228,10 +230,17 @@ namespace SnowflakeNative
             int array_count = pointerArray.Length;
             return np_vstack(pointerArray, array_count);
         }
-        protected static IntPtr CSHstack<T>(IntPtr[] pointerArray) where T : unmanaged
+        protected static IntPtr CSHstack(IntPtr[] pointerArray)
         {
             int array_count = pointerArray.Length;
             return np_hstack(pointerArray, array_count);
+        }
+
+        /// <summary> np_broadcast_to </summary>
+        protected static IntPtr CSBroadcastTo(IntPtr pointer, long[] size)
+        {
+            int size_nd = size.Length;
+            return np_broadcast_to(pointer, size, size_nd);
         }
         
         protected static IntPtr CSSqueeze<T>(IntPtr pointer) where T : unmanaged
@@ -465,7 +474,13 @@ namespace SnowflakeNative
         /// <summary> HStack </summary>
         [DllImport(DLL_Name, CallingConvention = CallingConvention.Cdecl)]
         protected static extern IntPtr np_hstack(IntPtr[] arrays, int array_count);
-
+        
+        // ----------------------------------------------------------------
+        // ブロードキャスト系
+        // ----------------------------------------------------------------
+        [DllImport(DLL_Name, CallingConvention = CallingConvention.Cdecl)]
+        protected static extern IntPtr np_broadcast_to(IntPtr array, long[] size, int size_nd);
+        
         // ----------------------------------------------------------------
         // 条件・論理演算系
         // ----------------------------------------------------------------
