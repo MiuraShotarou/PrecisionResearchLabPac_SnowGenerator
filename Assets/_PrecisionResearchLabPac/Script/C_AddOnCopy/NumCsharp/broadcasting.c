@@ -2,7 +2,7 @@
 static bool
 check_broadcastable(NdArray *src, int dest_nd, int64_t *dest_dimensions) {
     if (src == NULL) {
-        SET_ERROR_MESSAGE(("src is NULL");
+        SET_ERROR_MESSAGE("src is NULL");
         return false;
     }
     
@@ -17,17 +17,31 @@ check_broadcastable(NdArray *src, int dest_nd, int64_t *dest_dimensions) {
             SET_ERROR_MESSAGE("");
             return false;
         }
-    }
-}
-
-static void
-assign_broadcastingstrides(int nd, int64_t *src_dimensions, int64_t *dest_dimensions, int64_t *out_strides)
-{
-    for (int d = 0; d < nd; d++) {
-        if (src_dimensions[d] == 1) {
-            otu_strides[d] = 0;
+        if (src->dimensions[d] != dest_dimensions[d + offset] && src->dimensions[d] != 1) {
+            SET_ERROR_MESSAGE("check_broadcastable: shape mismatch.");
+            return false;
         }
     }
+    return true;
+}
+
+static void //実質、既存ndarrayの拡張操作。view に切り替える
+assign_broadcastingstrides(NdArray *src, NdArray *dest, int64_t *out_strides)
+{
+    /* override original strides */
+    int offset = dest->nd - src->nd; //2
+    int d = dest->nd - 1;
+    do {  //src->nd == 4(0~3), dest->nd == 6(0~5)
+        if (src->dimensions[d - offset] == 1) {
+            out_strides[d] = 0;
+        } else {
+            out_strides[d] = get_recalculatstride(d, dest->nd, dest->dimensions, dest->itemsize); // ndの拡張により、src->strides[d]と書くことはできない
+        }
+    } while (d-- > offset);
+    /* apply additional strides */
+    do { //d == 1
+        out_strides[d] = 0;
+    } while (d-- > 0);
 }
 
 static void

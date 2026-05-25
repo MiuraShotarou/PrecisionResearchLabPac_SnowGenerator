@@ -152,3 +152,26 @@ adjust_axis(int axis, int nd)
     //axis = (axis < 0) ? nd + *axis : *axis;
 	return (axis < 0) ? nd + axis : axis;
 }
+
+/* assign_creaetstrides */
+static void // nd, dimensions, itemsize, から新規stridesを計算。viewに切り替えない。
+assign_creaetstrides(int src_nd, int64_t *src_dimensions, int itemsize, int64_t *out_strides)
+{
+    int64_t stride = (int64_t)itemsize;
+    for (int i = src_nd - 1; i > -1; i--) {
+        out_strides[i] = stride;
+        stride *= src_dimensions[i];
+    }
+}
+
+static int64_t
+get_recalculatstride(int index, int src_nd, int64_t *src_dimensions, int itemsize)
+{
+	// src_nd == 4, index == 0, 3
+	int64_t stride = (int64_t)itemsize;
+	int i = src_nd - 1;
+	do {
+        stride *= src_dimensions[i];
+	} while (i-- > index);
+	return stride;
+}

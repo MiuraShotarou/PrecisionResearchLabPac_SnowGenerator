@@ -470,7 +470,7 @@ checkshape_and_decideshape(NdArray **arrays, int array_count, int *out_nd, int64
 }
 
 static NdArray*
-np_broadcast_to(NdArray *src, int64_t *dist_dimensions, int dist_nd)
+np_broadcast_to(NdArray *src, int64_t *dest_dimensions, int dest_nd)
 {
     if (src == NULL) {
         SET_ERROR_MESSAGE("np_broadcast_to: src is NULL.");
@@ -478,18 +478,15 @@ np_broadcast_to(NdArray *src, int64_t *dist_dimensions, int dist_nd)
     }
     
     /* check can broadcast */
-    if (!)
+    if (!check_broadcastable(src, dest_nd, dest_dimensions)) {
+        SET_ERROR_MESSAGE("np_broadcast_to: target shape is smaller than source shape.");
+        return NULL;
+    }
     
     /* create result ndarray */
-    NdArray *result = ndarray_copy(src);
+    NdArray *result = ndarray_create(dest_nd, dest_dimensions, src->itemsize, src->sdtype);
     
-    /* add dimensions */
-    if (src->nd < dist_nd) {
-        result->nd = dist_nd;
-        assgin_
-    } else if ()
     /* adjust strides */
-    
-    /*  */
-    assign_broadcastingstrides(int nd, int64_t *src->dimensions, result->strides)
+    assign_broadcastingstrides(src, result, result->strides);
+    return result;
 }
