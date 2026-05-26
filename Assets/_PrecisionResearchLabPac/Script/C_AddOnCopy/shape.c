@@ -3,7 +3,24 @@
 #include "arrayobject.h"
 #include "error.h"
 
-
+static double
+address_to_double(char *address, SDType sdtype)
+{
+    switch (sdtype) {
+        case Bool:   { bool     v; memcpy(&v, address, sizeof(bool));     return (double)v; }
+        case SByte:  { int8_t   v; memcpy(&v, address, sizeof(int8_t));   return (double)v; }
+        case Byte:   { uint8_t  v; memcpy(&v, address, sizeof(uint8_t));  return (double)v; }
+        case Short:  { int16_t  v; memcpy(&v, address, sizeof(int16_t));  return (double)v; }
+        case UShort: { uint16_t v; memcpy(&v, address, sizeof(uint16_t)); return (double)v; }
+        case Int:    { int32_t  v; memcpy(&v, address, sizeof(int32_t));  return (double)v; }
+        case UInt:   { uint32_t v; memcpy(&v, address, sizeof(uint32_t)); return (double)v; }
+        case Long:   { int64_t  v; memcpy(&v, address, sizeof(int64_t));  return (double)v; }
+        case ULong:  { uint64_t v; memcpy(&v, address, sizeof(uint64_t)); return (double)v; }
+        case Float:  { float    v; memcpy(&v, address, sizeof(float));    return (double)v; }
+        case Double: { double   v; memcpy(&v, address, sizeof(double));   return v;         }
+        default:     return 0.0;
+    }
+}
 
 static NdArray* //(int axis) の軸に従って、((配列1), (配列2))で指定した複数の配列を結合する。新しい次元の追加はしない
 np_concatenate(NdArray **arrays, int array_count, int axis) //shapeをふんだんに利用してコーディングされている

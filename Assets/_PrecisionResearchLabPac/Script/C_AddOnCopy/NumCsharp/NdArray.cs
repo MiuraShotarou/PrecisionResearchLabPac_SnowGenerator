@@ -14,17 +14,16 @@ using Cysharp.Threading.Tasks;
 // NdArray<T>クラスの生成関数はジェネリクスの指定を強制し、それ以外はNdArray.の記述で呼び出しが可能
 // NdArray<T>の破壊的操作を伴うメソッドは(関数名)+(NdArray<T>引数)の書き方で呼び出し可能
 // Tにはunmanaged型と、string型を指定可能
-// そのうち、Numpyにあるviewの概念も実装予定
 
 /// <summary> _pointer のnullチェックを忘れずに記述すること </summary>
 /// <summary> 現状、where T : unmanagedの付与により、Tへ参照型（stringなど）を渡すことができない </summary>
-/// <summary> メソッドの第一引数にthisを付与すること </summary>
 /// <summary> NdArrayを返すメソッドは破壊的操作なのか新規作成操作なのかを考慮して設計すること </summary>
 /// <summary> NdArrayを引数に渡すメソッドは、かならずヒープメモリからの解放処理をC言語側に記述すること </summary>
 /// <summary> C言語側で余分な大きさを持った配列を新規生成する場合は、不定値が入ってしまうことを念頭においてコーディングすること </summary>
 /// <summary> overflow対策は一旦しなくて良い </summary>
 /// <summary> dimensionsのlongはintにしたい </summary>
 /// <summary> C言語側 np → ns にリネームしたい </summary>
+/// <summary> C言語側 view によって操作を切り替える処理を追記すること </summary>
 /// <summary> NdArrayのコンストラクタに、ユーザーが要素を指定して初期化できる実装を追加する </summary>
 /// <summary> IDisposableインターフェイスの実装を検討 </summary>
 /// <summary> CSLanguageNativeクラス内でジェネリクスを使用しない書き方にリファクタしたい </summary>

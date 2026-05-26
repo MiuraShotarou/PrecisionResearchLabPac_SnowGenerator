@@ -45,7 +45,9 @@ NdArray* ndarray_create(int nd, int64_t *dimensions, int itemsize, SDType sdtype
 // ----------------------------------------------------------------
 void ndarray_free(NdArray *arr) {
     if (!arr) return; //エラー処理を追記すること
-    free(arr->data);
+	if (!arr->view) {
+        free(arr->data);  // view でない場合のみ解放
+    }
     free(arr->dimensions);
     free(arr->strides);
     free(arr);
@@ -112,5 +114,3 @@ check_scalar(NdArray *arr)
 	}
 	return true;
 }
-
-static 

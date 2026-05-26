@@ -469,6 +469,7 @@ checkshape_and_decideshape(NdArray **arrays, int array_count, int *out_nd, int64
     return true;
 }
 
+/* view create not copy 生data */ //NdArrayをview化する
 static NdArray*
 np_broadcast_to(NdArray *src, int64_t *dest_dimensions, int dest_nd)
 {
@@ -485,6 +486,9 @@ np_broadcast_to(NdArray *src, int64_t *dest_dimensions, int dest_nd)
     
     /* create result ndarray */
     NdArray *result = ndarray_create(dest_nd, dest_dimensions, src->itemsize, src->sdtype);
+    free(result->data);
+    result->data = src->data;
+    result->view = true;
     
     /* adjust strides */
     assign_broadcastingstrides(src, result, result->strides);

@@ -59,6 +59,25 @@ void double_to_double(char *dest, double value) {
     memcpy(dest, &value, sizeof(double));
 }
 
+static double
+address_to_double(char *address, SDType sdtype)
+{
+    switch (sdtype) {
+        case Bool:   { bool     v; memcpy(&v, address, sizeof(bool));     return (double)v; }
+        case SByte:  { int8_t   v; memcpy(&v, address, sizeof(int8_t));   return (double)v; }
+        case Byte:   { uint8_t  v; memcpy(&v, address, sizeof(uint8_t));  return (double)v; }
+        case Short:  { int16_t  v; memcpy(&v, address, sizeof(int16_t));  return (double)v; }
+        case UShort: { uint16_t v; memcpy(&v, address, sizeof(uint16_t)); return (double)v; }
+        case Int:    { int32_t  v; memcpy(&v, address, sizeof(int32_t));  return (double)v; }
+        case UInt:   { uint32_t v; memcpy(&v, address, sizeof(uint32_t)); return (double)v; }
+        case Long:   { int64_t  v; memcpy(&v, address, sizeof(int64_t));  return (double)v; }
+        case ULong:  { uint64_t v; memcpy(&v, address, sizeof(uint64_t)); return (double)v; }
+        case Float:  { float    v; memcpy(&v, address, sizeof(float));    return (double)v; }
+        case Double: { double   v; memcpy(&v, address, sizeof(double));   return v;         }
+        default:     return 0.0;
+    }
+}
+
 int itemsize_cast_by_sdtype(SDType sdtype)
 {
     switch (sdtype) {
@@ -98,7 +117,7 @@ get_indices(int nd, int64_t *dimensions, int64_t flat, int64_t *out_indices)
 {
     int64_t tmp = flat;
     for (int d = nd - 1; d > -1; d--) { // nd == 3, dimensions == {3, 1, 4}, flat = 24
-        out_indices[d] = tmp % dimensions[d] //
+        out_indices[d] = tmp % dimensions[d]; //
         tmp /= dimensions[d];
     }
 }
