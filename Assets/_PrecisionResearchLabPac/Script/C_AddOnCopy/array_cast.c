@@ -1,3 +1,7 @@
+// array_cast.c
+
+// sdtype修正を行った
+
 #include "array_cast.h"
 
 // SDType 指定で下記の(配列同士キャスト関数)を呼び出すことができるメソッド → 破壊的操作で変更する形に
@@ -19,19 +23,16 @@ NdArray* np_ndarray_cast (NdArray *src, SDType restype) {
     if (itemsize == -1) {
         return NULL;
     }
-    NdArray *result = ndarray_create(nd, dimensions, itemsize); //(int nd, int64_t *dimensions, int itemsize)
+    NdArray *result = ndarray_create(nd, dimensions, itemsize, restype);
     if (result == NULL) {
         return NULL;
     }
     
-    size_t n = 1;
-    for (int i = 0; i < nd; i++) {
-        n *= (size_t)dimensions[i];
-    }
+    int64_t total = get_totalelements(result->nd, result->dimensions);
     
-    char* srcdata = src->data;
-    char* resdata = result->data;
-    srcarray_to_resarray(srcdata, resdata, n);
+    char* src_ptr = src->data;
+    char* res_ptr = result->data;
+    srcarray_to_resarray(src_ptr, res_ptr, total);
     
     return result;
 } //NdArray.dataに反映させれば良い

@@ -1,3 +1,4 @@
+// static.c
 #include <stdbool.h>
 #include <assert.h>
 #include "numpy_methods.h"
@@ -59,7 +60,7 @@ void double_to_double(char *dest, double value) {
     memcpy(dest, &value, sizeof(double));
 }
 
-static double
+double
 address_to_double(char *address, SDType sdtype)
 {
     switch (sdtype) {
@@ -92,10 +93,11 @@ int itemsize_cast_by_sdtype(SDType sdtype)
     case ULong:  return sizeof(uint64_t);
     case Float:  return sizeof(float);
     case Double: return sizeof(double);
-    default:     return -1;  // エラー
+    default:     return -1;
     }
 }
-static int64_t
+
+int64_t
 get_totalelements(int size_nd, int64_t *size)
 {
     int64_t result = 1;
@@ -105,56 +107,56 @@ get_totalelements(int size_nd, int64_t *size)
     return result;
 }
 
-static int64_t
+int64_t
 get_last_flat(int64_t *size, int size_nd)
 {
-	return get_totalelements(size, size_nd) - 1;
+    return get_totalelements(size, size_nd) - 1;
 }
 
 /* index アクセス系 */
-static void
+void
 get_indices(int nd, int64_t *dimensions, int64_t flat, int64_t *out_indices)
 {
     int64_t tmp = flat;
-    for (int d = nd - 1; d > -1; d--) { // nd == 3, dimensions == {3, 1, 4}, flat = 24
-        out_indices[d] = tmp % dimensions[d]; //
+    for (int d = nd - 1; d > -1; d--) {
+        out_indices[d] = tmp % dimensions[d];
         tmp /= dimensions[d];
     }
 }
 
 /* indices to flat */
-static int64_t
+int64_t
 get_flat(int nd, int64_t *dimensions, int64_t *indices)
 {
     int64_t flat = 0;
     int64_t stride = 1;
     for (int d = nd - 1; d > -1; d--) {
-        flat += indices[d] * stride; //f = 3 * 1 == 3 ①, f = 3 * 3 == 9 ②, f = 4 * 3 == 12 ③ → f == 3 + 9 + 12 = 24
-        stride *= dimensions[d];	 //stride = 1 * 3 == 3 ①, 3 * 1 == 3 ②, 4 * 3 == 12 ③ 
+        flat += indices[d] * stride;
+        stride *= dimensions[d];
     }
     return flat;
 }
 
 /* increment indices */
-static void
+void
 increment_indices(int64_t *indices, int64_t *dimensions, int nd, int64_t *out_indices)
 {
-	bool carry = true; //dimensions == {3,4,3}
-	for (int d = nd - 1; d > -1 && carry; d--) { //nd == 3 → 2 ~ 0
-    	indices[d]++;                            //indices[] == {2, 3, 2} → {0, 0, 0}
-    	if (indices[d] < dimensions[d]) {
-        	carry = false;
-    	} else {
-        	indices[d] = 0;  // 桁上がり
-    	}
-	}
-	if (carry) { //true
-    	assert(true);
-	};
+    bool carry = true;
+    for (int d = nd - 1; d > -1 && carry; d--) {
+        indices[d]++;
+        if (indices[d] < dimensions[d]) {
+            carry = false;
+        } else {
+            indices[d] = 0;
+        }
+    }
+    if (carry) {
+        assert(true);
+    };
 }
 
 /* indices & strides to adress */
-static char*
+char*
 get_address(char *pointer, int64_t *indices, int64_t *strides, int nd)
 {
     char *ptr = pointer;
@@ -164,16 +166,21 @@ get_address(char *pointer, int64_t *indices, int64_t *strides, int nd)
     return ptr;
 }
 
-/* adjust axis */
-static int
-adjust_axis(int axis, int nd)
+/* get adjust axis (index)*/
+int
+get_adjust_axis(int axis, int nd)
 {
-    //axis = (axis < 0) ? nd + *axis : *axis;
-	return (axis < 0) ? nd + axis : axis;
+    return get_adjust_index(axis, nd);
+}
+
+int
+get_adjust_index(int axis, int nd)
+{
+    return (axis < 0) ? nd + index : index;
 }
 
 /* assign_creaetstrides */
-static void // nd, dimensions, itemsize, から新規stridesを計算。viewに切り替えない。
+void
 assign_creaetstrides(int src_nd, int64_t *src_dimensions, int itemsize, int64_t *out_strides)
 {
     int64_t stride = (int64_t)itemsize;
@@ -183,13 +190,12 @@ assign_creaetstrides(int src_nd, int64_t *src_dimensions, int itemsize, int64_t 
     }
 }
 
-static int64_t
+int64_t
 get_recalculatstride(int index, int src_nd, int64_t *src_dimensions, int itemsize)
 {
-	int64_t stride = (int64_t)itemsize;
+    int64_t stride = (int64_t)itemsize;
     for (int i = index + 1; i < src_nd; i++) {
         stride *= src_dimensions[i];
     }
-	return stride;
+    return stride;
 }
-	

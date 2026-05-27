@@ -27,11 +27,14 @@ using Cysharp.Threading.Tasks;
 /// <summary> dimensionsのlongはintにしたい </summary>
 /// <summary> C言語側 np → ns にリネームしたい </summary>
 /// <summary> C言語側 view によって操作を切り替える処理を追記すること </summary>
+/// <summary> C言語側 static付与の修正 </summary>
+/// <summary> C言語側 errorをgo to形式で記述 </summary>
 /// <summary> NdArrayのコンストラクタに、ユーザーが要素を指定して初期化できる実装を追加する </summary>
 /// <summary> IDisposableインターフェイスの実装を検討 </summary>
 /// <summary> CSLanguageNativeクラス内でジェネリクスを使用しない書き方にリファクタしたい </summary>
 /// <summary> だいぶ先の話だが、Add関数やRemove関数も追加したいな </summary>
 /// <summary> np_whereのindicesの戻り値を、出来ればNdArray<int>と<long>で自動切り替えができるように変更したいな </summary>
+/// <summary> NdArrayError.csをコーディング </summary>
 namespace SnowflakeNative
 {
     /// <summary> Collection is NdArray </summary>
