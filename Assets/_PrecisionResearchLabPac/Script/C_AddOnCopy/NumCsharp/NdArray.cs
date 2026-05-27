@@ -15,6 +15,9 @@ using Cysharp.Threading.Tasks;
 // NdArray<T>の破壊的操作を伴うメソッドは(関数名)+(NdArray<T>引数)の書き方で呼び出し可能
 // Tにはunmanaged型と、string型を指定可能
 
+/// <summary> C言語側へ渡すSDTypeを削除すること </summary>
+/// <summary> NdArrayViewクラスを実装する </summary>
+/// <summary> 実装しきれていないユーザーメソッドを実装する </summary>
 /// <summary> _pointer のnullチェックを忘れずに記述すること </summary>
 /// <summary> 現状、where T : unmanagedの付与により、Tへ参照型（stringなど）を渡すことができない </summary>
 /// <summary> NdArrayを返すメソッドは破壊的操作なのか新規作成操作なのかを考慮して設計すること </summary>
@@ -77,7 +80,7 @@ namespace SnowflakeNative
             return src;
         }
 
-        /// <summary> instance method </summary> //thisのTとメソッド内のTは同一の型として解釈される
+        /// <summary> instance method </summary> //thisのTとメソッド内のTは同一の型として解釈される. //戻り値のTが引数のTと異なる可能性があるメソッドはTRsultを明記している。
         /// <summary> NdArrayCopy </summary>
         public NdArray<T> NdArrayCopy() => Packing(new NdArray<T>(), CSCopy(this._pointer));
         /// <summary> AsArray </summary>
@@ -92,7 +95,7 @@ namespace SnowflakeNative
         public NdArray<T> Sum(int axis = -1, bool keepdims = false) => Packing(new NdArray<T>(), CSSum(this._pointer, axis, keepdims));
         public T Sum() => CSSum<T>(this._pointer);
         /// <summary> Cast </summary>
-        public NdArray<TResult> Cast<TResult>() where TResult : unmanaged => Packing(new NdArray<TResult>(), CSArrayCast<T, TResult>(this._pointer));
+        public NdArray<TResult> Cast<TResult>() where TResult : unmanaged => Packing(new NdArray<TResult>(), CSArrayCast<TResult>(this._pointer));
         /// <summary> Pad </summary>
         public NdArray<T> Pad(int pad_width, PadModeType mode, double value) => Packing(new NdArray<T>(), CSPad<T>(this._pointer, pad_width, mode, value));
         /// <summary> BroadcastTo </summary>
@@ -121,6 +124,9 @@ namespace SnowflakeNative
         /// <summary> Stack </summary>
         public static NdArray<T> Stack(NdArray<T>[] srcArray, uint axis = 0) => Packing(new NdArray<T>(), CSStack<T>(srcArray.Select(arr => arr._pointer).ToArray(), axis));
         public static NdArray<T> VStack(NdArray<T>[] srcArray) => Packing(new NdArray<T>(), CSVStack(srcArray.Select(arr => arr._pointer).ToArray()));
+
+        /// <summary> Concatenate </summary>
+        public static NdArray<T> Concatenate(IntPtr[] srcArray, int axis = 0) => Packing(new NdArray<T>(), CSConcatenate<T>(srcArray, axis));
     }
 
     public static class NdArray
@@ -186,9 +192,9 @@ namespace SnowflakeNative
             SDType resType = GenericsToSDType<T>();
             return np_d_arange(start, end, step, resType, order);
         }
-        protected static IntPtr CSArrayCast<TSource, T>(IntPtr pointer) where TSource : unmanaged where T : unmanaged
+        protected static IntPtr CSArrayCast<TResult>(IntPtr pointer) where TResult : unmanaged
         {
-            SDType resType = GenericsToSDType<T>();
+            SDType resType = GenericsToSDType<TResult>();
             // pointerをC言語側へ渡す
             IntPtr result = np_ndarray_cast(pointer, resType); //SDTypeでどのメソッドを呼び出すのか決めている。+ Source元の配列のポインタから具体的な型のついたポインタに変換する必要がある。それを、C言語側で行う。C#側のNdArrayは用意しなくて良い。
             if (result == IntPtr.Zero) {
@@ -481,22 +487,6 @@ namespace SnowflakeNative
         // ----------------------------------------------------------------
         [DllImport(DLL_Name, CallingConvention = CallingConvention.Cdecl)]
         protected static extern IntPtr np_broadcast_to(IntPtr array, long[] size, int size_nd);
-        
-        // ----------------------------------------------------------------
-        // 条件・論理演算系
-        // ----------------------------------------------------------------
-        /// <summary> Where </summary>
-        [DllImport(DLL_Name, CallingConvention = CallingConvention.Cdecl)]
-        protected static extern IntPtr np_where(IntPtr condition, IntPtr x, IntPtr y);
-        /// <summary> LogicalAnd </summary>
-        [DllImport(DLL_Name, CallingConvention = CallingConvention.Cdecl)]
-        protected static extern IntPtr np_logical_and(IntPtr a, IntPtr b);
-        /// <summary> LogicalOr </summary>
-        [DllImport(DLL_Name, CallingConvention = CallingConvention.Cdecl)]
-        protected static extern IntPtr np_logical_or(IntPtr a, IntPtr b);
-        /// <summary> LogicalNot </summary>
-        [DllImport(DLL_Name, CallingConvention = CallingConvention.Cdecl)]
-        protected static extern IntPtr np_logical_not(IntPtr a);
 
         // ----------------------------------------------------------------
         // 集計系
@@ -516,28 +506,12 @@ namespace SnowflakeNative
         /// <summary> Min </summary>
         [DllImport(DLL_Name, CallingConvention = CallingConvention.Cdecl)]
         protected static extern double np_min(IntPtr src);
-
+        
         // ----------------------------------------------------------------
-        // 演算系
+        // Where
         // ----------------------------------------------------------------
-        /// <summary> Add </summary>
         [DllImport(DLL_Name, CallingConvention = CallingConvention.Cdecl)]
-        protected static extern IntPtr np_add(IntPtr a, IntPtr b);
-        /// <summary> Subtract </summary>
-        [DllImport(DLL_Name, CallingConvention = CallingConvention.Cdecl)]
-        protected static extern IntPtr np_subtract(IntPtr a, IntPtr b);
-        /// <summary> Multiply </summary>
-        [DllImport(DLL_Name, CallingConvention = CallingConvention.Cdecl)]
-        protected static extern IntPtr np_multiply(IntPtr a, IntPtr b);
-        /// <summary> Divide </summary>
-        [DllImport(DLL_Name, CallingConvention = CallingConvention.Cdecl)]
-        protected static extern IntPtr np_divide(IntPtr a, IntPtr b);
-        /// <summary> Modulo </summary>
-        [DllImport(DLL_Name, CallingConvention = CallingConvention.Cdecl)]
-        protected static extern IntPtr np_modulo(IntPtr a, IntPtr b);
-        /// <summary> Negative </summary>
-        [DllImport(DLL_Name, CallingConvention = CallingConvention.Cdecl)]
-        protected static extern IntPtr np_negative(IntPtr src);
+        protected static extern IntPtr np_where(IntPtr condition, IntPtr x, IntPtr y);
 
         // ----------------------------------------------------------------
         // ランダム系

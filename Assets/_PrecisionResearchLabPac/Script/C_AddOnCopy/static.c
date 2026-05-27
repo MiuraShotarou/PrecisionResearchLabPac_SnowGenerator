@@ -186,11 +186,10 @@ assign_creaetstrides(int src_nd, int64_t *src_dimensions, int itemsize, int64_t 
 static int64_t
 get_recalculatstride(int index, int src_nd, int64_t *src_dimensions, int itemsize)
 {
-	// src_nd == 4, index == 0, 3
 	int64_t stride = (int64_t)itemsize;
-	int i = src_nd - 1;
-	do {
+    for (int i = index + 1; i < src_nd; i++) {
         stride *= src_dimensions[i];
-	} while (i-- > index);
+    }
 	return stride;
 }
+	

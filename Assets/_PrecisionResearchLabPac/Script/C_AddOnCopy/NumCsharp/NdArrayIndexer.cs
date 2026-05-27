@@ -99,7 +99,6 @@ namespace SnowflakeNative
                 long[] dimensions = ArrayDimensions(mask, nd);
                 SDType sdtype = ArraySDtype(mask);
                 int itemsize = ItemSizeCastBySDtype(sdtype);
-
                 IntPtr nd_mask = ndarray_convert(this._pointer, nd, dimensions, itemsize, sdtype); //値がコピーされていない → ndarray_convertを使用
                 switch (sdtype)
                 {
@@ -127,7 +126,7 @@ namespace SnowflakeNative
             set
             {
                 IntPtr mask_ndarray = ArrayToNdArray(mask);
-                this._pointer = set_ndarray_advancedindexing(this._pointer, mask_ndarray); //破壊的操作で良いかも
+                set_ndarray_advancedindexing(this._pointer, mask_ndarray, value._pointer);
             }
         }
     }
