@@ -2,7 +2,7 @@
 #include <stdint.h>
 
 // ----------------------------------------------------------------
-// 生成（空）
+// 生成（未初期化）
 // ----------------------------------------------------------------
 NdArray* ndarray_create(int nd, int64_t *dimensions, int itemsize, SDType sdtype) {
     NdArray *arr = (NdArray *)malloc(sizeof(NdArray));
@@ -29,7 +29,7 @@ NdArray* ndarray_create(int nd, int64_t *dimensions, int itemsize, SDType sdtype
     }
 
     // データ領域を確保
-    arr->data = (char *)calloc(stride, 1);
+    arr->data = (char *)malloc(stride, 1);
     if (!arr->data) {
         free(arr->dimensions);
         free(arr->strides);
@@ -51,6 +51,14 @@ void ndarray_free(NdArray *arr) {
     free(arr->dimensions);
     free(arr->strides);
     free(arr);
+}
+
+void ndarray_asview(NdArray *arr, NdArray *out_view) {
+    if (!arr || out_view) return;
+    if (arr->view || !out_view->view) return;
+    free(out_view->data);
+    out_view->data = arr->data;
+    out_view->view = true;
 }
 
 // ----------------------------------------------------------------
@@ -96,7 +104,7 @@ ndarray_shape(NdArray *src)
 */
 
 /* properties */
-static int64_t*
+int64_t*
 ndarray_shape(NdArray *src)
 {
     int64_t *shape = (int64_t *)malloc(sizeof(int64_t) * src->nd);

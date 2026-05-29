@@ -1,283 +1,207 @@
+method.c
 #include <stdbool.h>
 #include "error.h"
 
-//typedef struct {
-//    char    *data;          // 実データへのポインタ
-//    int      nd;            // 次元数
-//    int64_t *dimensions;   // 各次元のサイズ
-//    int64_t *strides;      // 各次元でステップする際ののバイト数 → 転置ができる
-//    int   itemsize;      // 1要素のバイト数 → 実質データ型でありstridesでもある
-//} NdArray;
+// pn_asarray() /* スカラー値からNdArrayに変換する関数 */ を廃止した
+// ndarray_createの引数sdtypeを確認した
+// staticの除外を行った
+// get_totalelementsの引数順を修正した
+// np_random_choiceをrandom.cに移した
 
- /* scalar to ndarray */
-static NdArray *
-np_asarray(void *value, SDType sdtype)
-{
-	// NULL チェック
 
-	int itemsize = itemsize_cast_by_sdtype(sdtype);
-	NdArray *result = ndarray_convert(value, NDARRAY_MIN_ND, NDARRAY_MIN_DIMENSIONS, itemsize, sdtype);
-
-	if (!check_scalar(result)) {
-		return NULL;
-	}
-	
-	return result;
-}
-
- /*  */
-static NdArray *
+ /* np zeros */
+NdArray*
 np_zeros(int64_t *size, int size_nd, SDtype sdtype)//order='C'C言語, 'F'Fotran 内部でfullを呼んでも良い
 {
-    int itemsize = itemsize_cast_by_sdtype(sdtype);
-    
-    NdArray *array = ndarray_create(size_nd, size, itemsize);
-    if (array == NULL) {
-		return NULL;
-	}
-    
-    return array;
+    NdArray *result = NULL;
+    double value = 0.0;
+    result = np_full(size, size_nd, value, sdtype);
+    if (result == NULL) {
+        SET_ERROR_MESSAGE("np_zeros: result is NULL.");
+        return NULL;
+    }
+    return result;
+    fail:
+        ndarray_free(result);
+        return NULL;
 }
- /*  */
-static NdArray *
+ /* np ones */
+NdArray*
 np_ones(int64_t *size, int size_nd, SDType sdtype)//order='C'C言語, 'F'Fotran
 {
+    NdArray *result = NULL;
     double value = 1.0;
-    NdArray *array = np_full(size, size_nd, value, sdtype);
-    return array;
+    result = np_full(size, size_nd, value, sdtype);
+    if (result == NULL) {
+        SET_ERROR_MESSAGE("np_ones: result is NULL.");
+        goto fail;
+    }
+    return result;
+    fail:
+        ndarray_free(result);
+        return NULL;
 }
 
-/*  */
-static NdArray *
+/* np full */
+NdArray*
 np_full(int64_t *size, int size_nd, double value, SDType sdtype, char order)
 {
+    NdArray *result = NULL;
     int itemsize = itemsize_cast_by_sdtype(sdtype);
-    
-    NdArray *array = ndarray_create(size_nd, size, itemsize);
-    
-    int64_t total = 1;
-    for (int i = 0; i < size_nd; i++) {
-        total *= size[i];
+    result = ndarray_create(size_nd, size, itemsize, sdtype);
+    if (result == NULL) {
+        SET_ERROR_MESSAGE("np_full: Cannot create a new result.");
+        goto fail;
     }
-    
+    int64_t total = get_totalelements(result->nd, result->dimensions);
     DScalarCast cast = dscalar_cast_by_sdtype[sdtype];
-    
-    for (int64_t i = 0; i < total; i++) {
-        cast(array->data + i * itemsize, value);
+    if (cast == NULL) {
+        SET_ERROR_MESSAGE("np_full: unsupported sdtype for cast.");
+        goto fail;
     }
-    return array;
+    for (int64_t i = 0; i < total; i++) {
+        cast(result->data + i * itemsize, value);
+    }
+    return result;
+    fail:
+        ndarray_free(result);
+        return NULL;
 }
 
 // エラー条件を検出する必要
-/*  */
-static NdArray *
+/* np arange */
+NdArray*
 np_arange(int start, int end, int step, SDType sdtype, char order)
 {
-	int nd = 1;
-	int64_t dimensions[1] = {(end - start) / step};
+    NdArray *result = NULL;
+    if (step == 0) {
+        SET_ERROR_MESSAGE("np_arange: step cannot be zero.");
+        goto fail;
+    }
+	int nd = NDARRAY_MIN_ND;
+	int64_t dimensions[NDARRAY_MAX_DIMENSIONS] = {(end - start) / step};
     int itemsize = itemsize_cast_by_sdtype(sdtype);
     if (itemsize == -1) {
-        return NULL;
+        SET_ERROR_MESSAGE("np_arange: unsupported sdtype.");
+        goto fail;
     }
-
-	NdArray *array = ndarray_create(nd, dimensions, itemsize);
-    if (array == NULL) {
-		return NULL;
-	}
-    
-    DoubleScalarCast doublescalarcast = doublescalar_cast_by_sdtype[sdtype];
-    if (doublescalarcast == NULL) {
-        return NULL;
+	result = ndarray_create(nd, dimensions, itemsize, sdtype);
+    if (result == NULL) {
+        SET_ERROR_MESSAGE("np_arange: ndarray_create failed.");
+        goto fail;
+    }
+    DoubleScalarCast cast = doublescalar_cast_by_sdtype[sdtype];
+    if (cast == NULL) {
+        SET_ERROR_MESSAGE("np_arange: unsupported sdtype for cast.");
+        goto fail;
     }
 	for (int i = 0; i < dimensions[0]; i++) {
-		double value = (double)(start + i * step); //型をitemsizeに合わせる必要あり
-        doublescalarcast(array->data + i * itemsize, value);
+		double value = (double)(start + i * step);
+        cast(result->data + i * itemsize, value);
 	}
-    
-    return array;
-}
-
-/* */ //スカラーは実装しない（System.Random.Rangeがあるため）
-static NdArray *
-np_random_choice(NdArray *src, int64_t *size, int size_nd, bool replace, float *p, int p_len, SDType sdtype) //IntPtr src, long[] size, int size_length, bool replace, float[] p, int p_length, SDType sdtype
-{
-    /* 総要素数を計算 */
-    size_t src_n = 1;
-    for (int i = 0; i < src->nd; i++) {
-        src_n *= (size_t)src->dimensions[i];
-    }
-
-    /* 出力配列の総要素数を計算 */
-    size_t res_n = 1;
-    for (int i = 0; i < size_nd; i++) {
-        res_n *= (size_t)size[i];
-    }
-
-    /* 出力配列を作成 */
-    int itemsize = itemsize_cast_by_sdtype(sdtype);
-    if (itemsize == -1) {
-        return NULL;
-    }
-
-    NdArray *result = ndarray_create(size_nd, size, itemsize);
-    if (result == NULL) {
-        return NULL;
-    }
-
-    /* 重複なし（replace=false）の場合、res_n <= src_n であること */ //構造的に不可な場合
-    if (!replace && res_n > src_n) {
-        ndarray_free(result);
-        SET_ERROR_MESSAGE("np_random_choice: Cannot take a larger sample than population when replace=false.");
-        return NULL;
-    }
-
-    /* インデックスプール（重複なしの場合に使用） */
-    size_t *pool = NULL;
-    if (!replace) {
-        pool = (size_t *)malloc(sizeof(size_t) * src_n);
-        if (pool == NULL) {
-            ndarray_free(result);
-            return NULL;
-        }
-        for (size_t i = 0; i < src_n; i++) pool[i] = i;
-    }
-
-    /* 各要素をランダムに選択してコピー */
-    for (size_t i = 0; i < res_n; i++) {
-        size_t idx;
-
-        if (p != NULL) {
-            /* 確率指定あり（replace関係なく確率で選択） */
-            float rnd = (float)rand() / (float)RAND_MAX;
-            float cumsum = 0.0f;
-            idx = src_n - 1;
-            for (size_t j = 0; j < src_n; j++) {
-                cumsum += p[j];
-                if (rnd <= cumsum) {
-                    idx = j;
-                    break;
-                }
-            }
-        } else {
-            /* 均等確率 */
-            idx = (size_t)rand() % src_n;
-        }
-
-        if (!replace) {
-            /* 重複なし：選択済みインデックスをプールから除外 */
-            // poolを使ってidxをスワップ
-            idx = pool[idx % (src_n - i)];
-            pool[idx] = pool[src_n - i - 1];
-        }
-
-        memcpy(
-            result->data + i * itemsize,
-            src->data + idx * src->itemsize,
-            itemsize
-        );
-    }
-    if (pool != NULL) free(pool);
     return result;
+    fail:
+        ndarray_free(result);
+        return NULL;
 }
 
-static double
-np_sum_return_scalar(NdArray *src, SDType srctype) //引数のsdtypeを削除予定
+double
+np_sum_return_scalar(NdArray *src)
 {
-    NdArray *cast_array = np_ndarray_cast(src, srctype, Double);
+    NdArray *cast_array = NULL;
+    if (src == NULL) {
+        SET_ERROR_MESSAGE("np_sum_return_scalar: src is NULL.");
+        goto fail;
+    }
+    NdArray *cast_array = np_ndarray_cast(src, src->sdtype, Double);
     if (cast_array == NULL) {
-        SET_ERROR_MESSAGE("");
-        return 0.0;
-    };
-
-    int64_t total = get_totalelements(cast_array->dimensions, cast_array->nd);
+        SET_ERROR_MESSAGE("np_sum_return_scalar: cast_array is NULL.");
+        goto fail;
+    }
+    int64_t total = get_totalelements(cast_array->nd, cast_array->dimensions);
     double result = 0.0;
     double *data = (double *)cast_array->data;
-
     for (int64_t i = 0; i < total; i++) {
         result += data[i];
     }
-
     ndarray_free(cast_array);
     return result;
+    fail;
+        ndarray_free(cast_array);
+        return NAN;
 }
 
-static NdArray *
-np_sum_return_array(NdArray *src, SDType srctype, SDType restype, int32_t axis, bool keepdims) //引数のsdtypeを削除予定
+NdArray*
+np_sum_return_array(NdArray *src, int32_t axis, bool keepdims)
 {
+    NdArray *result = NULL;
+    NdArray *cast_array = NULL;
+    if (src == NULL) {
+        SET_ERROR_MESSAGE("np_sum_return_array: src is NULL.");
+        goto fail;
+    }
     /* conditions scalar */
-    if (axis == -1) {
-        double scalar = np_sum_return_scalar(src, srctype);
-
-        int64_t dims[1] = { 1 };
-        NdArray* result = np_full(dims, 1, scalar, restype, 'C');
+    if (axis == AXIS_NONE) {
+        double scalar = np_sum_return_scalar(src, src->sdtype);
+        int64_t dims[NDARRAY_MIN_DIMENSIONS] = { NDARRAY_MIN_ND };
+        result = np_full(dims, 1, scalar, src->sdtype, 'C');
         if (result == NULL) {
-            SET_ERROR_MESSAGE("");
-            return NULL;
+            SET_ERROR_MESSAGE("np_sum_return_array: result is NULL.");
+            goto fail;
         }
-        
         return result;
     }
-    
     /* create cast_array */
-    NdArray *cast_array = np_ndarray_cast(src, srctype, Double);
+    cast_array = np_ndarray_cast(src, src->sdtype, Double);
     if (cast_array == NULL) {
-        SET_ERROR_MESSAGE("");
-        return NULL;
-    };
-    
+        SET_ERROR_MESSAGE("np_sum_return_array: cast_array is NULL.");
+        goto fail;
+    }
     /* conditions error */
+    axis = get_adjust_axis(axis, cast_array->nd);
     if (axis < 0 || axis >= cast_array->nd) {
         SET_ERROR_MESSAGE_ARGUMENT("np_sum_return_array: axis %d is out of range.", axis);
-        ndarray_free(cast_array);
-        return NULL;
+        goto fail;
     }
-    
     /* copy dimensions */
-    int res_nd = keepdims ? cast_array->nd : cast_array->nd - 1;
-    int64_t res_dims[64];
+    int res_nd = keepdims? cast_array->nd : cast_array->nd - 1;
+    int64_t res_dims[NDARRAY_MAX_DIMENSIONS];
     int res_idx = 0;
-    for (int i = 0; i < cast_array->nd; i++) { //nd == 4, axis == 1
-        if (i == axis) {
-            if (keepdims) //次元を保持するなら
-            {
-                res_dims[res_idx++] = 1; //dimensionsの要素ではなく、1を代入する。axisに該当する次元の要素数を1にする
+    for (int d = 0; d < cast_array->nd; d++) { //nd == 4, axis == 1
+        if (d == axis) {
+            if (keepdims) { //次元を保持するなら
+                res_dims[res_idx++] = NDARRAY_MIN_DIMENSIONS; //dimensionsの要素ではなく、1を代入する。axisに該当する次元の要素数を1にする
             }
-        } else {
-            res_dims[res_idx++] = cast_array->dimensions[i]; //cast_array->dimensionsの各要素をres_dimsにコピー
+        } 
+        else {
+            res_dims[res_idx++] = cast_array->dimensions[d]; //cast_array->dimensionsの各要素をres_dimsにコピー
         }
     }
-    
     int itemsize = itemsize_cast_by_sdtype(restype);
     if (itemsize == -1) {
-        ndarray_free(cast_array);
-        return NULL;
+        SET_ERROR_MESSAGE("np_sum_return_array: unsupported restype.");
+        goto fail;
     }
-    
-    NdArray *result = ndarray_create(res_nd, res_dims, itemsize);
+    result = ndarray_create(res_nd, res_dims, itemsize, src->sdtype);
     if (result == NULL) {
-        ndarray_free(cast_array);
-        return NULL;
+        SET_ERROR_MESSAGE("np_sum_return_array: result is NULL.");
+        goto fail;
     }
-    
     /* azis方向に計算 */
     int64_t outer = 1, inner = 1;
-    for (int i = 0; i < axis; i++) { // dims(2, 4, 3), axis == 1
-        outer *= cast_array->dimensions[i];
+    for (int d = 0; d < axis; d++) { // dims(2, 4, 3), axis == 1
+        outer *= cast_array->dimensions[d];
     }
-    for (int i = axis + 1; i < cast_array->nd; i++) {
-        inner *= cast_array->dimensions[i];
+    for (int d = axis + 1; d < cast_array->nd; d++) {
+        inner *= cast_array->dimensions[d];
     }
     int64_t axis_len = cast_array->dimensions[axis];
-    
     double *src_data = (double *)cast_array->data;
-    DScalarCast cast = dscalar_cast_by_sdtype[restype];
+    DScalarCast cast = dscalar_cast_by_sdtype[result->sdtype];
     if (cast == NULL) {
-        SET_ERROR_MESSAGE("");
-        ndarray_free(cast_array);
-        ndarray_free(result);
-        return NULL;
+        SET_ERROR_MESSAGE("np_sum_return_array: cast is NULL.");
+        goto fail;
     }
-    
     for (int64_t o = 0; o < outer; o++) {
         for (int64_t in = 0; in < inner; in++) {
             double sum = 0.0;
@@ -287,94 +211,113 @@ np_sum_return_array(NdArray *src, SDType srctype, SDType restype, int32_t axis, 
             cast(result->data + (o * inner + in) * itemsize, sum);
         }
     }
-    
     ndarray_free(cast_array);
     return result;
+    fail:
+        ndarray_free(result);
+        ndarray_free(cast_array);
+        return NULL;
 }
 
-static NdArray*
-np_pad(NdArray *src, int32_t pad_width, PadModeType mode, double value, SDType restype)
+NdArray*
+np_pad(NdArray *src, int32_t pad_width, PadModeType mode, double value)
 {
+    NdArray *result = NULL;
     if (src == NULL) {
         SET_ERROR_MESSAGE("np_pad: src is NULL.");
-        return NULL;
+        goto fail;
     }
-
     /* 出力配列の形状を計算 */
-    int src_nd = src->nd;
-    int64_t res_dims[64];
-    for (int i = 0; i < src_nd; i++) {
-        res_dims[i] = src->dimensions[i] + (int64_t)pad_width * 2; //加算のみで良いのか？
+    int nd = src->nd;
+    int64_t dimensions[NDARRAY_MAX_DIMENSIONS];
+    for (int d = 0; d < nd; d++) {
+        dimensions[d] = src->dimensions[d] + (int64_t)pad_width * 2; //加算のみで良いのか？
     }
-
+    int itemsize = itemsize_cast_by_sdtype(src->sdtype);
+    if (itemsize == -1) {
+        SET_ERROR_MESSAGE("np_sum_return_array: unsupported sdtype.");
+        goto fail;
+    }
     /* 出力配列を生成 */
-    NdArray *result = np_full(res_dims, src_nd, value, restype); //最初からfullとかで良い気がする long[] size, int size_nd, double value, SDType sdtype
+    result = np_full(dimensions, nd, value, itemsize, src->sdtype); //最初からfullとかで良い気がする long[] size, int size_nd, double value, SDType sdtype
     if (result == NULL) {
-        SET_ERROR_MESSAGE("np_pad: ndarray_create failed.");
-        return NULL;
+        SET_ERROR_MESSAGE("np_pad: result is NULL.");
+        goto fail;
     }
-    
-    int64_t src_total = get_totalelements(src->dimensions, src_nd);
-    for (int64_t idx = 0; idx < src_total; idx++) {
+    int64_t total = get_totalelements(nd, src->dimensions);
+    for (int64_t f = 0; f < total; f++) {
         /* src のフラットインデックスから各次元のインデックスを計算 */
-        int64_t res_idx = 0;
-        int64_t tmp = idx;
+        int64_t res_f = 0;
+        int64_t tmp = f;
         int64_t stride = 1;
-
-        for (int d = src_nd - 1; d >= 0; d--) {
-            int64_t dim_idx = tmp % src->dimensions[d];  // d次元のインデックス
+        for (int d = nd - 1; d > -1; d--) {
+            int64_t dim_i = tmp % src->dimensions[d];  // d次元のインデックス
             tmp /= src->dimensions[d];
-            res_idx += (dim_idx + pad_width) * stride;
-            stride *= res_dims[d];
+            res_f += (dim_i + pad_width) * stride;
+            stride *= dimensions[d];
         }
-
-        memcpy(
-            result->data + res_idx * src->itemsize,
-            src->data    + idx    * src->itemsize,
-            src->itemsize
-        );
+        memcpy(result->data + res_f * src->itemsize, src->data + f * src->itemsize, src->itemsize);
     }
     return result;
+    fail:
+        ndarray_free(result);
+        return NULL;
 }
 
-static NdArray*
+NdArray*
 np_where(NdArray *conditions, NdArray *a, NdArray *b)
 {
+    NdArray *result = NULL;
 	if (conditions == NULL) {
 		SET_ERROR_MESSAGE("np_where: src is NULL.");
-		return NULL;
+		goto fail;
 	}
 	if (conditions->sdtype != Bool) {
 		SET_ERROR_MESSAGE("np_where: conditions should be Bool.");
-		return NULL;
+		goto fail;
 	}
-
 	if (a == NULL && b == NULL) {
 		// return conditions tuple
 		// condisionsのture部分のindexを取得する
-		return get_ndarray_boolndarrayindices(conditions);
-	} else if (a != NULL && b != NULL) {
+		result = get_ndarray_boolndarrayindices(conditions);
+	}
+    else if (a != NULL && b != NULL) {
 		// return conditions value
-		if (a->sdtype != b->sdtype) {//C#のコンパイルで弾かれる条件
+		if (a->sdtype != b->sdtype) { //C#のコンパイルで弾かれる条件
 			SET_ERROR_MESSAGE("np_where: sdtype mismatch between trueValue and falseValue.");
-			return NULL;
+			goto fail;
 		}
-		return get_ndarray_where(conditions, a, b);
-	} else {
+		result = get_ndarray_where(conditions, a, b);
+	} 
+    else {
 		SET_ERROR_MESSAGE("np_where: a and b must both be specified or both be NULL.");
-    	return NULL;
+    	goto fail;
 	}
 	// 条件にNdArrayが指定された際の処理は、indexingの関数を流用できる → できるとすればboolindexingだけかな。== 演算子ならfancyも利用できるね → operator_overload関数群に処理を移して、indexingはそれを呼び出す設計にすると可読性が上がるかも
 	// 条件の部分で、何が引数に渡されてくるかわからない。そう考えると、whereの中で引数の型に合わせて条件分岐する必要がある。→ C#側ですべての条件をNdArray<bool>に変換する。CNative.np_whereではそのNdArray<bool>を引数に受け取り、実装を行う方針で。
 	// 条件のみを引数に渡した際は、trueのindicesをタプルに変換して戻り値に返し、第一・第二引数を指定した場合はndarrayを戻り値に返す仕様。→ 条件のみの場合でもNdArray<T>(indices)を返す仕様にしよう
 	// 第一・第二引数は、C#側が必ずNdArrayに変換するため問題ない
+    return result;
+    fail:
+        ndarray_free(result);
+        return NULL;
 }
 
 static NdArray*
 get_ndarray_boolndarrayindices(NdArray *conditions)
 {
+    NdArray *result = NULL;
+    if (conditions == NULL) {
+        SET_ERROR_MESSAGE("get_ndarray_boolndarrayindices: conditions is NULL.");
+        goto fail;
+    }
+    if (conditions->sdtype != Bool) {
+        SET_ERROR_MESSAGE("get_ndarray_boolndarrayindices: conditions must be Bool type.");
+        goto fail;
+    }
+    
 	int64_t indices_count = 0;
-	int64_t indices_array[64][64];
+    int64_t indices_array[NDARRAY_MAX_DIMENSIONS][NDARRAY_MAX_DIMENSIONS];
 	int64_t total = get_totalelements(conditions->nd, conditions->dimensions);
 	for (int f = 0; f < total; f++) {
 		bool condition;
@@ -383,40 +326,59 @@ get_ndarray_boolndarrayindices(NdArray *conditions)
 			get_indices(conditions->nd, conditions->dimensions, f, indices_array[indices_count++]);
 		}
 	}
-	NdArray *result = indicesndarray_create((int64_t)conditions->nd, indices_count);
+	result = indicesndarray_create((int64_t)conditions->nd, indices_count);
 	
 	memcpy(result->data, indices_array, result->dimensions[0] * result->dimensions[1] * sizeof(int64_t));
 
 	return result;
+    fail:
+        ndarray_free(result);
+        return NULL;
 }
 
 static NdArray*
 indicesndarray_create(int64_t indices_nd, int64_t indices_count)
 {
+    NdArray *result = NULL;
 	// ndは固定値, dimenions[0]は計算が必要, [1]はwhereの場合不要。他から呼び出す場合はわからない
-	int nd = INDICES_DEFAULT_ND; //
+	int nd = INDICES_DEFAULT_ND; //2
 	int64_t dimensions[INDICES_DEFAULT_ND];
 	dimensions[0] = indices_count;
 	dimensions[1] = indices_nd;
-	NdArray *result = ndarray_create(nd, dimensions, sizeof(int64_t), Long);
+	result = ndarray_create(nd, dimensions, sizeof(int64_t), Long);
+    if (result == NULL) {
+        SET_ERROR_MESSAGE("indicesndarray_create: result is NULL.");
+        goto fail;
+    }
 	return result;
+    fail:
+        ndarray_free(result);
+        return NULL;
 }
 
 static NdArray*
 get_ndarray_where(NdArray *conditions, NdArray *a, NdArray *b)
 {
-	int nd = 0;
-	int64_t dimensions[64];
+    NdArray *result = NULL;
+    if (conditions == NULL || a == NULL || b == NULL) {
+        SET_ERROR_MESSAGE("get_ndarray_where: conditions, a or b is NULL.");
+        goto fail;
+    }
+    if (check_scalar(conditions)) {
+        SET_ERROR_MESSAGE("get_ndarray_where: conditions must not be scalar.");
+        goto fail;
+    }
+    int nd = 0;
+    int64_t dimensions[NDARRAY_MAX_DIMENSIONS];
 	// conditions,a,bの形状が一致 or 1 であればOk
-	NdArray *arrays[] = { conditions, a, b };
-	bool valid = checkshape_and_decideshape(arrays, 3, &nd, dimensions);
-	if (!valid) {
-		// error メッセージ
-		return NULL;
-	}
-
+    NdArray *arrays[3] = {conditions, a, b};
+    bool valid = checkshape_and_decideshape(arrays, 3, &nd, dimensions);
+    if (!valid) {
+        SET_ERROR_MESSAGE("np_where: shape mismatch.");
+        goto fail;
+    }
 	// result用ndarrayの作成
-	NdArray *result = ndarray_create(nd, dimensions, a->itemsize, a->sdtype);
+	result = ndarray_create(nd, dimensions, a->itemsize, a->sdtype);
 	// a,b指定がある場合のwhereの計算処理
 	int64_t total = get_totalelements(conditions->nd, conditions->dimensions);
 	for (int f = 0; f < total; f++) {
@@ -425,72 +387,75 @@ get_ndarray_where(NdArray *conditions, NdArray *a, NdArray *b)
 		// resultへの代入
 		if (condition) {
 			memcpy(result->data + f * result->itemsize, check_scalar(a)? a->data : a->data + f * a->itemsize, result->itemsize);
-		} else {
+		}
+	    else {
 			memcpy(result->data + f * result->itemsize, check_scalar(b)? b->data : b->data + f * b->itemsize, result->itemsize);
 		}
 	}
 	return result;
+    fail:
+        ndarray_free(result);
+        return NULL;
 }
 
 static bool
 checkshape_and_decideshape(NdArray **arrays, int array_count, int *out_nd, int64_t *out_dimensions) //形状の完全一致 or スカラーを許容
 {
-	int ref_nd = 1;
-	int64_t ref_dims[64];
-    memset(ref_dims, 0, sizeof(ref_dims));
-	ref_dims[0] = 1;
-	// 基準となる形状を取得
+    int nd = NDARRAY_MIN_ND;
+    int64_t dimensions[NDARRAY_MAX_DIMENSIONS];
+    memset(dimensions, 0, sizeof(dimensions));
+    dimensions[0] = NDARRAY_MIN_DIMENSIONS;
+    // 基準となる形状を取得
     for (int i = 0; i < array_count; i++) {
         if (check_scalar(arrays[i])) {
-			continue; // scalar is skip
-		}
-        ref_nd = arrays[i]->nd;
-        memcpy(ref_dims, arrays[i]->dimensions, sizeof(int64_t) * arrays[i]->nd);
+            continue; // scalar is skip
+        }
+        nd = arrays[i]->nd;
+        memcpy(dimensions, arrays[i]->dimensions, sizeof(int64_t) * arrays[i]->nd);
         break;
     }
     // 形状チェック
     for (int i = 0; i < array_count; i++) {
         if (check_scalar(arrays[i])) {
-			 continue;
-		}
-        if (arrays[i]->nd != ref_nd) {
+            continue;
+        }
+        if (arrays[i]->nd != nd) {
             SET_ERROR_MESSAGE("check_shape: nd mismatch.");
             return false;
         }
-        for (int d = 0; d < ref_nd; d++) {
-            if (arrays[i]->dimensions[d] != ref_dims[d]) {
+        for (int d = 0; d < nd; d++) {
+            if (arrays[i]->dimensions[d] != dimensions[d]) {
                 SET_ERROR_MESSAGE("check_shape: dimensions mismatch.");
                 return false;
             }
         }
     }
-	*out_nd = ref_nd;
-	memcpy(out_dimensions, ref_dims, sizeof(int64_t) * ref_nd);
+    *out_nd = nd;
+    memcpy(out_dimensions, dimensions, sizeof(int64_t) * nd);
     return true;
 }
 
 /* view create not copy 生data */ //NdArrayをview化する
-static NdArray*
+NdArray*
 np_broadcast_to(NdArray *src, int64_t *dest_dimensions, int dest_nd)
 {
+    NdArray *result = NULL;
     if (src == NULL) {
         SET_ERROR_MESSAGE("np_broadcast_to: src is NULL.");
-        return NULL;
+        goto fail;
     }
-    
     /* check can broadcast */
     if (!check_broadcastable(src, dest_nd, dest_dimensions)) {
         SET_ERROR_MESSAGE("np_broadcast_to: target shape is smaller than source shape.");
-        return NULL;
+        goto fail;
     }
-    
     /* create result ndarray */
-    NdArray *result = ndarray_create(dest_nd, dest_dimensions, src->itemsize, src->sdtype);
-    free(result->data);
-    result->data = src->data;
-    result->view = true;
-    
+    result = ndarray_create(dest_nd, dest_dimensions, src->itemsize, src->sdtype);
+    ndarray_asview(src, result);
     /* adjust strides */
     assign_broadcastingstrides(src, result, result->strides);
     return result;
+    fail:
+        ndarray_free(result);
+        return NULL;
 }

@@ -1,7 +1,7 @@
 // broadcasting.c
 /* Broadcasting */
 // 形状一致型のブロードキャストが可能かどうかを判断する
-static bool
+bool
 check_broadcastable(NdArray *a, int b_nd, int64_t *b_dimensions) {
     if (a == NULL) {
         SET_ERROR_MESSAGE("a is NULL");
@@ -17,7 +17,8 @@ check_broadcastable(NdArray *a, int b_nd, int64_t *b_dimensions) {
                 }
             }
         }
-    } else { //Max_Is_B or same
+    } 
+    else { //Max_Is_B or same
         for (int d = 0; d < a->nd; d++) {
             if (a->dimensions[d] != b_dimensions[d + offset]) {
                 if (a->dimensions[d] != 1 && b_dimensions[d + offset] != 1) {
@@ -28,13 +29,12 @@ check_broadcastable(NdArray *a, int b_nd, int64_t *b_dimensions) {
     }
     
     return true;
-    
     fail:
         SET_ERROR_MESSAGE("check_broadcastable: shape mismatch.");
         return false;
 }
 // 形状拡張型のブロードキャストが可能かどうかを判断する
-static bool
+bool
 check_broadcastexpand(NdArray *src, int dest_nd, int64_t *dest_dimensions)
 {
     if (src == NULL) {
@@ -60,17 +60,22 @@ check_broadcastexpand(NdArray *src, int dest_nd, int64_t *dest_dimensions)
     }
     
     return true;
-    
     fail:
         SET_ERROR_MESSAGE("check_broadcastexpand: shape mismatch.");
         return false;
 }
 // 形状一致型のブロードキャストを行い、結果として確定される形状をnd, dimensionsパラメータで取得する
-static void
+void
 assign_broadcastingshape(NdArray *a, NdArray *b, int *out_nd, int64_t *out_dimensions) {
+    if (a == NULL || b == NULL) {
+        SET_ERROR_MESSAGE("a or b is NULL");
+        goto fail;
+    }
+    
     /* can broadcast table */
     if (!check_broadcastable(a, b->nd, b->dimensions)) {
-        return;
+        SET_ERROR_MESSAGE("assign_broadcastingshape: shape mismatch.");
+        goto fail;
     }
     
     int nd = NDARRAY_MAX(a->nd, b->nd);
@@ -86,34 +91,37 @@ assign_broadcastingshape(NdArray *a, NdArray *b, int *out_nd, int64_t *out_dimen
         do {
             dimensions[d] = a->dimensions[d];
         } while (d-- > 0);
-    } else 
-    if (a->nd < b->nd) {  //a->nd == 4(0~3), b->nd == 6(0~5)
+    } 
+    else if (a->nd < b->nd) {  //a->nd == 4(0~3), b->nd == 6(0~5)
         do {
             dimensions[d] = NDARRAY_MAX(a->dimensions[d - offset], b->dimensions[d]);
         } while (d-- > offset);
         do {
             dimensions[d] = b->dimensions[d];
         } while (d-- > 0);
-    } else {
+    } 
+    else {
         do {
             dimensions[d] = NDARRAY_MAX(a->dimensions[d], b->dimensions[d]);
         } while (d-- > 0);
     }
-    
     *out_nd = nd;
     memcpy(out_dimensions, dimensions, sizeof(int64_t) * nd);
+    fail:
+        return;
 }
 
-static void //実質、既存ndarrayの拡張操作。view に切り替える
+void //実質、既存ndarrayの拡張操作。view に切り替える
 assign_broadcastingstrides(NdArray *src, NdArray *dest, int64_t *out_strides)
 {
     if (src == NULL || dest == NULL) {
-        SET_ERROR_MESSAGE("src or dest is NULL");
-        return;
+        SET_ERROR_MESSAGE("assign_broadcastingstrides: src or dest is NULL.");
+        goto fail;
     }
     
     if (!check_broadcastexpand(src, dest->nd, dest->dimensions)) {
-        return;
+        SET_ERROR_MESSAGE("assign_broadcastingstrides: check_broadcastexpand failed.");
+        goto fail;
     }
     
     /* override original strides */

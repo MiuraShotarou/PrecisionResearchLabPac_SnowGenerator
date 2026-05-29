@@ -1,7 +1,8 @@
-// static.c
+// utils.c
+// static.c → utils.cへリネーム
 #include <stdbool.h>
 #include <assert.h>
-#include "numpy_methods.h"
+#include "utils.h"
 
 DoubleScalarCast doublescalar_cast_by_sdtype[] = {
     double_to_bool,
@@ -82,18 +83,18 @@ address_to_double(char *address, SDType sdtype)
 int itemsize_cast_by_sdtype(SDType sdtype)
 {
     switch (sdtype) {
-    case Bool:   return sizeof(bool);
-    case SByte:  return sizeof(int8_t);
-    case Byte:   return sizeof(uint8_t);
-    case Short:  return sizeof(int16_t);
-    case UShort: return sizeof(uint16_t);
-    case Int:    return sizeof(int32_t);
-    case UInt:   return sizeof(uint32_t);
-    case Long:   return sizeof(int64_t);
-    case ULong:  return sizeof(uint64_t);
-    case Float:  return sizeof(float);
-    case Double: return sizeof(double);
-    default:     return -1;
+        case Bool:   return sizeof(bool);
+        case SByte:  return sizeof(int8_t);
+        case Byte:   return sizeof(uint8_t);
+        case Short:  return sizeof(int16_t);
+        case UShort: return sizeof(uint16_t);
+        case Int:    return sizeof(int32_t);
+        case UInt:   return sizeof(uint32_t);
+        case Long:   return sizeof(int64_t);
+        case ULong:  return sizeof(uint64_t);
+        case Float:  return sizeof(float);
+        case Double: return sizeof(double);
+        default:     return -1;
     }
 }
 
@@ -108,7 +109,7 @@ get_totalelements(int size_nd, int64_t *size)
 }
 
 int64_t
-get_last_flat(int64_t *size, int size_nd)
+get_last_flat(int size_nd, int64_t *size)
 {
     return get_totalelements(size, size_nd) - 1;
 }
@@ -152,7 +153,7 @@ increment_indices(int64_t *indices, int64_t *dimensions, int nd, int64_t *out_in
     }
     if (carry) {
         assert(true);
-    };
+    }
 }
 
 /* indices & strides to adress */

@@ -14,6 +14,7 @@ using Cysharp.Threading.Tasks;
 // NdArray<T>クラスの生成関数はジェネリクスの指定を強制し、それ以外はNdArray.の記述で呼び出しが可能
 // NdArray<T>の破壊的操作を伴うメソッドは(関数名)+(NdArray<T>引数)の書き方で呼び出し可能
 // Tにはunmanaged型と、string型を指定可能
+// NdArrayではない型からNdArrayに変換する際は、NdArrayクラスのコンストラクタを使用する。従って、AsArrayメソッドは廃止する
 
 /// <summary> C言語側へ渡すSDTypeを削除すること </summary>
 /// <summary> NdArrayViewクラスを実装する </summary>
@@ -28,7 +29,8 @@ using Cysharp.Threading.Tasks;
 /// <summary> C言語側 np → ns にリネームしたい </summary>
 /// <summary> C言語側 view によって操作を切り替える処理を追記すること </summary>
 /// <summary> C言語側 static付与の修正 </summary>
-/// <summary> C言語側 errorをgo to形式で記述 </summary>
+/// <summary> C言語側 errorをgo to形式で記述。fail 内でのローカルポインタの解放 </summary>
+/// <summary> C言語側 size_tの使用を検討 </summary>
 /// <summary> NdArrayのコンストラクタに、ユーザーが要素を指定して初期化できる実装を追加する </summary>
 /// <summary> IDisposableインターフェイスの実装を検討 </summary>
 /// <summary> CSLanguageNativeクラス内でジェネリクスを使用しない書き方にリファクタしたい </summary>
@@ -86,8 +88,6 @@ namespace SnowflakeNative
         /// <summary> instance method </summary> //thisのTとメソッド内のTは同一の型として解釈される. //戻り値のTが引数のTと異なる可能性があるメソッドはTRsultを明記している。
         /// <summary> NdArrayCopy </summary>
         public NdArray<T> NdArrayCopy() => Packing(new NdArray<T>(), CSCopy(this._pointer));
-        /// <summary> AsArray </summary>
-        public NdArray<T> AsArray() => Packing(new NdArray<T>(), CSAsArray(this._pointer));
         /// <summary> RandomChoice </summary>
         public NdArray<T> RandomChoice(long[] size, bool replace = true, float[] p = null) => Packing(new NdArray<T>(), CSRandomChoice<T>(this._pointer, size, replace, p));
         /// <summary> Ravel </summary>
@@ -150,19 +150,7 @@ namespace SnowflakeNative
         
         // 引数, 戻り値に NdArray<T>の使用を禁止
         protected static IntPtr CSCopy(IntPtr pointer) => ndarray_copy(pointer);
-        /// <summary>  </summary>s
-        protected static IntPtr CSAsArray<T>(T value) where T : unmanaged
-        {
-            // value == structを不可に、stringを有りにする。valueに参照型を渡すことはできない
-            SDType sdType = GenericsToSDType<T>();
-            int itemsize = ItemSizeCastBySDtype(sdType);
-            // スタック上にメモリを確保してscalarをコピー
-            IntPtr pointer = Marshal.AllocHGlobal(itemsize);
-            Marshal.StructureToPtr(value, pointer, false);
-            // scalarをNdArrayに変換する処理
-            IntPtr result = np_asarray(pointer, sdType);
-			return result;
-        }
+        
         protected static IntPtr CSZeros<T>(long[] size) where T : unmanaged
         {
             int size_nd = size.Length;
@@ -392,8 +380,21 @@ namespace SnowflakeNative
         {
             return TypeToSDType(array.GetType().GetElementType());
         }
-        
-        /// <summary> array to ndarray </summary>
+        /// <summary> Scalar To NdArray </summary>
+        protected static IntPtr CSScalarToNdArray<T>(T value) where T : unmanaged
+        {
+            // value == structを不可に、stringを有りにする。valueに参照型を渡すことはできない
+            SDType sdType = GenericsToSDType<T>();
+            int itemsize = ItemSizeCastBySDtype(sdType);
+            // スタック上にメモリを確保してscalarをコピー
+            IntPtr pointer = Marshal.AllocHGlobal(itemsize);
+            Marshal.StructureToPtr(value, pointer, false);
+            // scalarをNdArrayに変換する処理
+            int nd = 1;
+            long[] dimensions = new long[nd];
+            return ndarray_convert(pointer, nd, dimensions, itemsize, sdType);
+        }
+        /// <summary> Array To NdArray </summary>
         protected static IntPtr ArrayToNdArray(Array src) //src 解放しないver.
         {
             int nd = ArrayNd(src);
@@ -427,9 +428,6 @@ namespace SnowflakeNative
         /// <summary> NdArrayCopy </summary>
         [DllImport(DLL_Name, CallingConvention = CallingConvention.Cdecl)]
         protected static extern IntPtr ndarray_copy(IntPtr src);
-        /// <summary> AsArray </summary>
-        [DllImport(DLL_Name, CallingConvention = CallingConvention.Cdecl)]
-        protected static extern IntPtr np_asarray(IntPtr src, SDType sdtype);
         /// <summary> Zeros </summary>
         [DllImport(DLL_Name, CallingConvention = CallingConvention.Cdecl)]
         protected static extern IntPtr np_zeros(long[] size, int size_nd, SDType sdtype);

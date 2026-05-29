@@ -19,7 +19,7 @@ namespace SnowflakeNative
         /// <summary> Scalar to NdArray<T> at Implicit Conversion </summary>
         public static implicit operator NdArray<T>(T value) //scalar
         {
-            return Packing(new NdArray<T>(), CSAsArray(value));
+            return Packing(new NdArray<T>(), CSScalarToNdArray(value));
         }
         public static implicit operator NdArray<T>(Array value) //array
         {

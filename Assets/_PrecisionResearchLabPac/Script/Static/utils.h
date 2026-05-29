@@ -1,6 +1,7 @@
-// static.h
-#ifndef NUMPY_METHODS_H
-#define NUMPY_METHODS_H
+// utils.h
+// static.h → utils.h
+#ifndef UTILS_H
+#define UTILS_H
  
 #include <stdint.h>
 #include <stdbool.h>

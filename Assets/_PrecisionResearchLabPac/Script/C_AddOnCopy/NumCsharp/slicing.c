@@ -1,5 +1,7 @@
 // slicing.c
-
+// ndarray_createの引数sdtypeを確認した
+// staticの除外を行った
+// get_totalelementsの引数順を修正した
 
 機能: (配列)[start:end:step] → 引数に従って配列の要素を抽出する
 
@@ -21,29 +23,40 @@ typedef struct {
 // ②start, end, step を基準に、ゲッター側とセッター側のスライス処理を実装する。
 // ③ゲッター処理を考慮し、値をコピーする前にリザルト用のNdArrayを生成するcreate関数を実装する
 
-static NdArray*
+NdArray*
 get_ndarray_slicing(NdArray *src, SliceStruct **slice, int slice_nd)
 {
+    if (src == NULL || slice == NULL) {
+        SET_ERROR_MESSAGE("get_ndarray_slicing: src or slice is NULL.");
+        goto fail;
+    }
+    
     if (slice_nd > src->nd) {
         SET_ERROR_MESSAGE("np_slice: slices_nd exceeds the number of dimensions of src.");
-        return NULL;
+        goto fail;
     }
     
     bool conditions = check_sliceconditions_and_assignstepsign(slice, slice_nd);
     if (!conditions) {
         SET_ERROR_MESSAGE("np_slice: invalid slice parameter detected. Step cannot be zero.");
-        return NULL;
+        goto fail;
     }
     NdArray *result = slicingndarray_create(slice, slice_nd, src);
     
     assign_ndarray_slicing(src, slice, slice_nd, result);
 	
 	return result;
+    fail:
+       return NULL; 
 }
 
 static void
 assign_ndarray_slicing(NdArray *src, SliceStruct **slices, int slice_nd, NdArray *out_res)
 {
+    if (src == NULL || slices == NULL || out_res == NULL) {
+        SET_ERROR_MESSAGE("assign_ndarray_slicing: src, slices or out_res is NULL.");
+        return;
+    }
 /*
     src の形状 (4, 5)
     src =
@@ -78,7 +91,7 @@ assign_ndarray_slicing(NdArray *src, SliceStruct **slices, int slice_nd, NdArray
  	[[36, 37, 38], [39, 40, 41]]]
 */
     /* init indices */
-    int64_t src_indices[64];
+    int64_t src_indices[NDARRAY_MAX_DIMENSIONS];
     memset(src_indices, 0, sizeof(src_indices));
     for (int d = 0; d < slice_nd; d++) {
        src_indices[d] = slices[d]->start;
@@ -88,7 +101,8 @@ assign_ndarray_slicing(NdArray *src, SliceStruct **slices, int slice_nd, NdArray
 	int64_t remaining = 0;
     if (src->nd > slice_nd) {
         remaining = get_totalelements(src->nd - slice_nd, src->dimensions + slice_nd);
-    } else {
+    }
+    else {
 		remaining = 1;
 	}
 
@@ -121,8 +135,12 @@ assign_ndarray_slicing(NdArray *src, SliceStruct **slices, int slice_nd, NdArray
 static NdArray*
 slicingndarray_create(SliceStruct **slice, int slice_nd, NdArray *src)
 {
+    if (slice == NULL || src == NULL) {
+        SET_ERROR_MESSAGE("slicingndarray_create: slice or src is NULL.");
+        goto fail;
+    }
     int nd = src->nd;
-    int64_t dimensions[64]; 
+    int64_t dimensions[NDARRAY_MAX_DIMENSIONS]; 
     for (int d = 0; d < src->nd; d++) {
         if (d < slice_nd)  {
 			if (slice[d]->sign == 1) {
@@ -131,7 +149,7 @@ slicingndarray_create(SliceStruct **slice, int slice_nd, NdArray *src)
 				dimensions[d] = (slice[d]->start - slice[d]->stop - slice[d]->step - 1) / (-slice[d]->step);
 			} else {
     			SET_ERROR_MESSAGE("slicingndarray_create: sign is not set.");
-    			return NULL;
+    			goto fail;
 			}
         }
         else {
@@ -140,6 +158,8 @@ slicingndarray_create(SliceStruct **slice, int slice_nd, NdArray *src)
     }
     NdArray *result = ndarray_create(nd, dimensions, src->itemsize, src->sdtype);
     return result;
+    fail:
+        return NULL;
 }
 
 static bool
@@ -172,16 +192,23 @@ check_sliceconditions_and_assignstepsign(SliceStruct **out_slice, int slice_nd)
 static void
 set_ndarray_slicing(NdArray *out_src, SliceStruct **slice, int slice_nd, NdArray *value)
 {
+    if (out_src == NULL || slice == NULL || value == NULL) {
+        SET_ERROR_MESSAGE("set_ndarray_slicing: out_src, slice or value is NULL.");
+        goto fail;
+    }
+    
 	if (slice_nd > out_src->nd) {
         SET_ERROR_MESSAGE("np_slice: slices_nd exceeds the number of dimensions of src.");
-        return;
+        goto fail;
     }
     
     bool conditions = check_sliceconditions_and_assignstepsign(slice, slice_nd);
     if (!conditions) {
         SET_ERROR_MESSAGE("np_slice: invalid slice parameter detected. Step cannot be zero.");
-        return;
+        goto fail;
     }
     
     assign_ndarray_slicing(value, slice, slice_nd, out_src);
+    fail:
+        return;
 }
