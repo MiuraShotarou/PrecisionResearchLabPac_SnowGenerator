@@ -30,21 +30,18 @@ get_ndarray_slicing(NdArray *src, SliceStruct **slice, int slice_nd)
         SET_ERROR_MESSAGE("get_ndarray_slicing: src or slice is NULL.");
         goto fail;
     }
-    
     if (slice_nd > src->nd) {
         SET_ERROR_MESSAGE("np_slice: slices_nd exceeds the number of dimensions of src.");
         goto fail;
-    }
-    
+    } 
     bool conditions = check_sliceconditions_and_assignstepsign(slice, slice_nd);
     if (!conditions) {
         SET_ERROR_MESSAGE("np_slice: invalid slice parameter detected. Step cannot be zero.");
         goto fail;
     }
     NdArray *result = slicingndarray_create(slice, slice_nd, src);
-    
     assign_ndarray_slicing(src, slice, slice_nd, result);
-	
+	ndarray_asview(src, result)
 	return result;
     fail:
        return NULL; 
@@ -96,7 +93,6 @@ assign_ndarray_slicing(NdArray *src, SliceStruct **slices, int slice_nd, NdArray
     for (int d = 0; d < slice_nd; d++) {
        src_indices[d] = slices[d]->start;
     }
-
 	/* count remaining elements */
 	int64_t remaining = 0;
     if (src->nd > slice_nd) {
@@ -105,7 +101,6 @@ assign_ndarray_slicing(NdArray *src, SliceStruct **slices, int slice_nd, NdArray
     else {
 		remaining = 1;
 	}
-
     /* slicing copy */
     int64_t copied_elements = 0;
     char *src_address = NULL, *res_address = NULL;
@@ -114,7 +109,6 @@ assign_ndarray_slicing(NdArray *src, SliceStruct **slices, int slice_nd, NdArray
     	res_address = out_res->data + copied_elements * out_res->itemsize;
     	memcpy(res_address, src_address, src->itemsize * remaining);
 		copied_elements += remaining;
-
     	for (int d = slice_nd - 1; d > -1; d--) {
             src_indices[d] += slices[d]->step;
             if (slices[d]->sign == 1 ? src_indices[d] < slices[d]->stop : src_indices[d] > slices[d]->stop) {
@@ -196,18 +190,15 @@ set_ndarray_slicing(NdArray *out_src, SliceStruct **slice, int slice_nd, NdArray
         SET_ERROR_MESSAGE("set_ndarray_slicing: out_src, slice or value is NULL.");
         goto fail;
     }
-    
 	if (slice_nd > out_src->nd) {
         SET_ERROR_MESSAGE("np_slice: slices_nd exceeds the number of dimensions of src.");
         goto fail;
     }
-    
     bool conditions = check_sliceconditions_and_assignstepsign(slice, slice_nd);
     if (!conditions) {
         SET_ERROR_MESSAGE("np_slice: invalid slice parameter detected. Step cannot be zero.");
         goto fail;
     }
-    
     assign_ndarray_slicing(value, slice, slice_nd, out_src);
     fail:
         return;

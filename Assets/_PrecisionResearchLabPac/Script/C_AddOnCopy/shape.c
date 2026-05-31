@@ -11,17 +11,17 @@
 NdArray* //(int axis) の軸に従って、((配列1), (配列2))で指定した複数の配列を結合する。新しい次元の追加はしない
 np_concatenate(NdArray **arrays, int array_count, int axis) //shapeをふんだんに利用してコーディングされている
 {
+	NdArray* result = NULL;
     if (arrays == NULL || array_count < 1) {
         SET_ERROR_MESSAGE("np_concatenate: arrays is NULL or array_count is invalid.");
         goto fail;
     }
-    
     for (int i = 1; i < array_count; i++) {
         if (arrays[i]->nd != arrays[0]->nd) { //各配列のnd一致チェック
             SET_ERROR_MESSAGE_ARGUMENT("np_concatenate: shape mismatch at dimension %d.", i);
             goto fail;
+		}
     }
-    
     /* axis以外のサイズが不一致だった場合 */
     for (int d = 0; d < arrays[0]->nd; d++) {
         if (d == axis) {
@@ -36,12 +36,10 @@ np_concatenate(NdArray **arrays, int array_count, int axis) //shapeをふんだ�
             }
         }
     }
-    
     axis = get_adjust_axis(axis, arrays[0]->nd);
-    
     if (axis >= arrays[0]->nd) {
         SET_ERROR_MESSAGE_ARGUMENT("np_concatenate: axis %d is out of range for array with %d dimensions.", axis, arrays[0]->nd);
-        return NULL;
+        goto fail;;
     }
     /*
      * a.dimensions == (2,4) b.dimensions == (1,4) axis == 0
@@ -100,29 +98,24 @@ np_concatenate(NdArray **arrays, int array_count, int axis) //shapeをふんだ�
          [a, a, a, a, b, b, b, b],
          [a, a, a, a, b, b, b, b]]]
     */
-    
     /* swich_point == (index == axis ~ maxIndex) dimensions[index] * dimensions[index]……/
-    
     /* result配列の形状を計算 */
     int axis_size = 0;
     for (int i = 0; i < array_count; i++) {
         axis_size += arrays[i]->dimensions[axis];
     }
-    
-    int res_nd = arrays[0]->nd;
-    int64_t res_dims[64];
-    for (int i = 0; i < res_nd; i++) {
-        res_dims[i] = i == axis? axis_size : arrays[0]->dimensions[i];
+    int nd = arrays[0]->nd;
+    int64_t dimensions[NDARRAY_MAX_DIMENSIONS];
+    for (int i = 0; i < nd; i++) {
+        dimensions[i] = i == axis? axis_size : arrays[0]->dimensions[i];
     }
-        
     /* 形状を反映させたresult配列を作成 */
-    NdArray* result = ndarray_create(res_nd, res_dims, arrays[0]->itemsize, arrays[0]->sdtype);
-    
+    result = ndarray_create(nd, dimensions, arrays[0]->itemsize, arrays[0]->sdtype);
     // 配列代入処理（resultの破壊的操作）
     merge_arrays_along_axis(arrays, array_count, axis, result->itemsize, result);
-    
     return result;
     fail: 
+		ndarray_free(result);
         return NULL;
 }
 
@@ -130,6 +123,7 @@ np_concatenate(NdArray **arrays, int array_count, int axis) //shapeをふんだ�
 NdArray*
 np_stack(NdArray **arrays, int array_count, int axis)
 {
+	NdArray* result = NULL;
     /*
      *  {2, 3, 4}, {2, 3, 4}, axis = 0
         // result.shape(2, 2, 3, 4) → {2(0), 2, 3, 4}
@@ -246,19 +240,16 @@ np_stack(NdArray **arrays, int array_count, int axis)
            [a, b],
            [a, b]]]]
     */
-
 	if (arrays == NULL || array_count < 1) {
     	SET_ERROR_MESSAGE("np_stack: arrays is NULL or array_count is invalid.");
-    	return NULL;
+    	goto fail;
     }
-    
     for (int i = 1; i < array_count; i++) {
         if (arrays[i]->nd != arrays[0]->nd) { //各配列のnd一致チェック
             SET_ERROR_MESSAGE_ARGUMENT("np_concatenate: shape mismatch at dimension %d.", i);
             goto fail;
         }
     }
-
     /* axis以外のサイズが不一致だった場合 */
     for (int d = 0; d < arrays[0]->nd; d++) {
         if (d == axis) {
@@ -273,32 +264,27 @@ np_stack(NdArray **arrays, int array_count, int axis)
             }
         }
     }
-
     axis = get_adjust_axis(axis, arrays[0]->nd);
-
     if (axis >= arrays[0]->nd) {
         SET_ERROR_MESSAGE_ARGUMENT("np_concatenate: axis %d is out of range for array with %d dimensions.", axis, arrays[0]->nd);
-        return NULL;
+        goto fail;;
     }
-    
-    int res_nd = arrays[0]->nd + 1;
-    int64_t res_dims[64];
-    for (int i = 0; i < res_nd; i++) { // res_nd == 4, axis == 2, result_shape(2, 3, 2(0), 4)
+    int nd = arrays[0]->nd + 1;
+    int64_t dimensions[NDARRAY_MAX_DIMENSIONS];
+    for (int i = 0; i < nd; i++) { // nd == 4, axis == 2, result_shape(2, 3, 2(0), 4)
         if (i == axis) {
-            res_dims[i] = array_count;
+            dimensions[i] = array_count;
         }
         else {
-            res_dims[i] = arrays[0]->dimensions[i < axis? i : i - 1];
+            dimensions[i] = arrays[0]->dimensions[i < axis? i : i - 1];
         }
     }
-    
-    NdArray* result = ndarray_create(res_nd, res_dims, arrays[0]->itemsize, arrays[0]->sdtype); //引数に既存のコレクションを指定
-    
+    result = ndarray_create(nd, dimensions, arrays[0]->itemsize, arrays[0]->sdtype); //引数に既存のコレクションを指定
     // 配列代入処理（resultの破壊的操作）
     merge_arrays_along_axis(arrays, array_count, axis, result->itemsize, result);
-    
     return result;
     fail:
+		ndarray_free(result);
         return NULL;
 }
 
@@ -347,132 +333,150 @@ merge_arrays_along_axis(NdArray **srcs, int array_count, int axis, int itemsize,
         }
     }
 }
-    
 NdArray*
 np_ravel(NdArray *src)
 {
+	NdArray *result = NULL; 
     if (src == NULL) {
         SET_ERROR_MESSAGE("np_ravel: src is NULL.");
         goto fail;
     }
-    
     int nd = NDARRAY_MIN_ND;
     int64_t dimensions[NDARRAY_MAX_DIMENSIONS];
     int64_t total = get_totalelements(src->nd, src->dimensions);
     dimensions[0] = total;
-    
-    NdArray *result = ndarray_create(nd, dimensions, src->itemsize, src->sdtype);
-    
-    memcpy(result->data, src->data, total * src->itemsize);
-        
+    result = ndarray_create(nd, dimensions, src->itemsize, src->sdtype);
+	if (result == NULL) {
+		SET_ERROR_MESSAGE("np_ravel: result is NULL.");
+		goto fail;
+	}
+	if (src->flags & NDARRAY_FLAG_C_CONTIGUOUS) { //メモリが連続していれば
+    	memcpy(result->data, src->data, total * src->itemsize);
+	}
+	else {
+		for (int64_t f = 0; f < total; f++) {
+    		int64_t indices[NDARRAY_MAX_DIMENSIONS];
+    		assign_indices(src->nd, src->dimensions, f, indices);
+    		char *src_address = get_address(src->data, indices, src->strides, src->nd);
+    		memcpy(result->data + f * src->itemsize, src_address, src->itemsize);
+		}
+	}
     return result;
     fail:
+		ndarray_free(result);
         return NULL;
 }
 
 NdArray*
 np_reshape(NdArray *src, int64_t *size, int size_nd)
 {
+	NdArray *result = NULL;
     if (src == NULL) {
         SET_ERROR_MESSAGE("np_reshape: src is NULL.");
         goto fail;
     }
-        
     int64_t src_total = get_totalelements(src->nd, src->dimensions);
     int64_t res_total = get_totalelements(size_nd, size);
     if (src_total != res_total) {
         SET_ERROR_MESSAGE_ARGUMENT("cannot reshape array of size %lld into shape with size %lld.", src_total, res_total);
         goto fail;
     }
-    
-    NdArray *result = ndarray_create(size_nd, size, src->itemsize, src->sdtype);
+    result = ndarray_create(size_nd, size, src->itemsize, src->sdtype);
     if (result == NULL) {
         SET_ERROR_MESSAGE("np_reshape: result is NULL.");
         goto fail;
     }
-    
-    memcpy(result->data, src->data, res_total * src->itemsize);
-    
+    if (src->flags & NDARRAY_FLAG_C_CONTIGUOUS) {
+    	memcpy(result->data, src->data, src_total * src->itemsize);
+	}
+	else {
+		for (int64_t f = 0; f < src_total; f++) {
+    		int64_t indices[NDARRAY_MAX_DIMENSIONS];
+    		assign_indices(src->nd, src->dimensions, f, indices);
+    		char *src_address = get_address(src->data, indices, src->strides, src->nd);
+    		memcpy(result->data + f * src->itemsize, src_address, src->itemsize);
+		}
+	}
     return result;
     fail:
+		ndarray_free(result);
         return NULL;
 }
     
 NdArray*
 np_resize(NdArray *src, int64_t *size, int size_nd)
 {
+	NdArray *result = NULL;
     if (src == NULL) {
         SET_ERROR_MESSAGE("np_resize: src is NULL.");
         goto fail;
     }
-        
     int64_t src_total = get_totalelements(src->nd, src->dimensions);
     int64_t res_total = get_totalelements(size_nd, size);
     if (src_total == res_total) { // conditions reshape
         return np_reshape(src, size, size_nd);
     }
-        
-    NdArray *result = ndarray_create(size_nd, size, src->itemsize, src->sdtype);
-    
+    result = ndarray_create(size_nd, size, src->itemsize, src->sdtype);
     int64_t loop = res_total / src_total; //64 / 66 == 0, 64 / 64 == 1, 64 / 32 == 2
     int i = 0;
     do {
         memcpy(result->data + (i++ * src_total * src->itemsize), src->data, src_total * src->itemsize);
     } while (--loop > 0);
-        
     return result;
     fail:
+		ndarray_free(result);
         return NULL;
 }
     
 NdArray*
 np_squeeze(NdArray *src)
 {
+	NdArray *result = NULL;
     if (src == NULL) {
         SET_ERROR_MESSAGE("np_squeeze: src is NULL.");
         goto fail;
     }
     /* result 配列の形状を確定 */
-    int res_nd = 0;
-    int64_t res_dims[NDARRAY_MAX_DIMENSIONS];
+    int nd = 0;
+    int64_t dimensions[NDARRAY_MAX_DIMENSIONS];
     for (int d = 0; d < src->nd; d++) {
         if (src->dimensions[d] > 1) {
-            res_dims[res_nd] = src->dimensions[d];
-            res_nd++;
+            dimensions[nd] = src->dimensions[d];
+            nd++;
         }
     }
-    
-    if (res_nd == src->nd) {
-        return src;
-    }
-    
-    NdArray *result = ndarray_create(res_nd, res_dims, src->itemsize, src->sdtype);
-    
-    int64_t src_total = get_totalelements(src->nd, src->dimensions);
-    
-    memcpy(result->data, src->data, src_total * src->itemsize);
-
+    result = ndarray_create(nd, dimensions, src->itemsize, src->sdtype);
+	//形状を変え、reference(生データを持たない)にするだけ
+	ndarray_asreference(src, result);
     return result;
     fail:
+		ndarray_free(result);
         return NULL;
 }
     
-NdArray* //要素の入れ替え、反転
+NdArray* //要素の入れ替え、反転。NumpyではNOT_OWN_DATAを返す
 np_transpose(NdArray *src, int64_t *size) //size.default == (0, 1, 2, 3……)
 {
+	NdArray *result = NULL;
     if (src == NULL || size == NULL) {
         SET_ERROR_MESSAGE("np_transpose: src or size is NULL.");
         goto fail;
     }
-        
-    NdArray *result = ndarray_copy(src);
-
+    result = ndarray_create(src->nd, src->dimensions, src->itemsize, src->sdtype); //Numpyではsrcのviewを返す
     for (int d = 0; d < src->nd; d++) {
         result->dimensions[d] = src->dimensions[size[d]];
         result->strides[d] = src->strides[size[d]];
     }
-
+	ndarray_asreference(src, result);
+	// &= ~C_CONTIGUOUS, |= F_CONTIGUOUS
+	if (checkndarray_flag_c_contiguous(result)) { //メモリが連続していた場合
+		assign_flags_c_contiguous_on(&result->flags);
+	}
+	else {
+		assign_flags_c_contiguous_off(&result->flags);
+	}
     return result;
     fail:
+		ndarray_free(result);
         return NULL;
 }

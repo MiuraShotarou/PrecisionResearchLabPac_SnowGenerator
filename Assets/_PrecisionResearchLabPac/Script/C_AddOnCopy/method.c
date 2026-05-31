@@ -18,7 +18,7 @@ np_zeros(int64_t *size, int size_nd, SDtype sdtype)//order='C'C言語, 'F'Fotran
     result = np_full(size, size_nd, value, sdtype);
     if (result == NULL) {
         SET_ERROR_MESSAGE("np_zeros: result is NULL.");
-        return NULL;
+        goto fail;
     }
     return result;
     fail:
@@ -113,7 +113,7 @@ np_sum_return_scalar(NdArray *src)
         SET_ERROR_MESSAGE("np_sum_return_scalar: src is NULL.");
         goto fail;
     }
-    NdArray *cast_array = np_ndarray_cast(src, src->sdtype, Double);
+    cast_array = np_ndarray_cast(src, src->sdtype, Double);
     if (cast_array == NULL) {
         SET_ERROR_MESSAGE("np_sum_return_scalar: cast_array is NULL.");
         goto fail;
@@ -126,7 +126,7 @@ np_sum_return_scalar(NdArray *src)
     }
     ndarray_free(cast_array);
     return result;
-    fail;
+    fail:
         ndarray_free(cast_array);
         return NAN;
 }
@@ -142,7 +142,7 @@ np_sum_return_array(NdArray *src, int32_t axis, bool keepdims)
     }
     /* conditions scalar */
     if (axis == AXIS_NONE) {
-        double scalar = np_sum_return_scalar(src, src->sdtype);
+        double scalar = np_sum_return_scalar(src);
         int64_t dims[NDARRAY_MIN_DIMENSIONS] = { NDARRAY_MIN_ND };
         result = np_full(dims, 1, scalar, src->sdtype, 'C');
         if (result == NULL) {
@@ -177,7 +177,7 @@ np_sum_return_array(NdArray *src, int32_t axis, bool keepdims)
             res_dims[res_idx++] = cast_array->dimensions[d]; //cast_array->dimensionsの各要素をres_dimsにコピー
         }
     }
-    int itemsize = itemsize_cast_by_sdtype(restype);
+    int itemsize = itemsize_cast_by_sdtype(src->sdtype);
     if (itemsize == -1) {
         SET_ERROR_MESSAGE("np_sum_return_array: unsupported restype.");
         goto fail;
@@ -227,37 +227,39 @@ np_pad(NdArray *src, int32_t pad_width, PadModeType mode, double value)
         SET_ERROR_MESSAGE("np_pad: src is NULL.");
         goto fail;
     }
+	if (pad_width < 0) {
+		SET_ERROR_MESSAGE("np_pad: pad_width must be non-negative.");
+		goto fail;
+	}
+	else if (pad_width == 0) {
+		result = ndarray_copy(src);
+		return result;
+	}
     /* 出力配列の形状を計算 */
     int nd = src->nd;
     int64_t dimensions[NDARRAY_MAX_DIMENSIONS];
     for (int d = 0; d < nd; d++) {
-        dimensions[d] = src->dimensions[d] + (int64_t)pad_width * 2; //加算のみで良いのか？
-    }
-    int itemsize = itemsize_cast_by_sdtype(src->sdtype);
-    if (itemsize == -1) {
-        SET_ERROR_MESSAGE("np_sum_return_array: unsupported sdtype.");
-        goto fail;
+        dimensions[d] = src->dimensions[d] + (int64_t)pad_width * 2;
     }
     /* 出力配列を生成 */
-    result = np_full(dimensions, nd, value, itemsize, src->sdtype); //最初からfullとかで良い気がする long[] size, int size_nd, double value, SDType sdtype
+    result = np_full(dimensions, nd, value, src->sdtype, 'C'); //最初からfullで追加ぶんを代入しておく
     if (result == NULL) {
         SET_ERROR_MESSAGE("np_pad: result is NULL.");
         goto fail;
     }
-    int64_t total = get_totalelements(nd, src->dimensions);
-    for (int64_t f = 0; f < total; f++) {
-        /* src のフラットインデックスから各次元のインデックスを計算 */
-        int64_t res_f = 0;
-        int64_t tmp = f;
-        int64_t stride = 1;
-        for (int d = nd - 1; d > -1; d--) {
-            int64_t dim_i = tmp % src->dimensions[d];  // d次元のインデックス
-            tmp /= src->dimensions[d];
-            res_f += (dim_i + pad_width) * stride;
-            stride *= dimensions[d];
-        }
-        memcpy(result->data + res_f * src->itemsize, src->data + f * src->itemsize, src->itemsize);
-    }
+    int64_t total = get_totalelements(src->nd, src->dimensions);
+	for (int64_t f = 0; f < total; f++) {
+    	int64_t src_indices[NDARRAY_MAX_DIMENSIONS];
+    	assign_indices(src->nd, src->dimensions, f, src_indices);
+    	char *src_address = get_address(src->data, src_indices, src->strides, src->nd);
+		int64_t res_indices[NDARRAY_MAX_DIMENSIONS];
+		// srcから算出したindicesは、pad_widthぶん値がずれている。
+		for (int d = 0; d < src->nd; d++) {
+    		res_indices[d] = src_indices[d] + pad_width;
+		}
+		char *res_address = get_address(result->data, res_indices, result->strides, result->nd);
+    	memcpy(res_address, src_address, src->itemsize);
+	}
     return result;
     fail:
         ndarray_free(result);
@@ -315,7 +317,6 @@ get_ndarray_boolndarrayindices(NdArray *conditions)
         SET_ERROR_MESSAGE("get_ndarray_boolndarrayindices: conditions must be Bool type.");
         goto fail;
     }
-    
 	int64_t indices_count = 0;
     int64_t indices_array[NDARRAY_MAX_DIMENSIONS][NDARRAY_MAX_DIMENSIONS];
 	int64_t total = get_totalelements(conditions->nd, conditions->dimensions);
@@ -323,13 +324,11 @@ get_ndarray_boolndarrayindices(NdArray *conditions)
 		bool condition;
 		memcpy(&condition, conditions->data + f * conditions->itemsize, sizeof(bool));
 		if (condition) {
-			get_indices(conditions->nd, conditions->dimensions, f, indices_array[indices_count++]);
+			assign_indices(conditions->nd, conditions->dimensions, f, indices_array[indices_count++]);
 		}
 	}
 	result = indicesndarray_create((int64_t)conditions->nd, indices_count);
-	
 	memcpy(result->data, indices_array, result->dimensions[0] * result->dimensions[1] * sizeof(int64_t));
-
 	return result;
     fail:
         ndarray_free(result);
@@ -451,9 +450,19 @@ np_broadcast_to(NdArray *src, int64_t *dest_dimensions, int dest_nd)
     }
     /* create result ndarray */
     result = ndarray_create(dest_nd, dest_dimensions, src->itemsize, src->sdtype);
-    ndarray_asview(src, result);
+	if (result == NULL) {
+		SET_ERROR_MESSAGE("np_broadcast_to: result is NULL.");
+		goto fail;
+	}
     /* adjust strides */
     assign_broadcastingstrides(src, result, result->strides);
+    ndarray_asreference(src, result);
+	if (checkndarray_flag_c_contiguous(result)) {
+		assign_flags_c_contiguous_on(&result->flags);
+	}
+	else {
+		assign_flags_c_contiguous_off(&result->flags);
+	}
     return result;
     fail:
         ndarray_free(result);

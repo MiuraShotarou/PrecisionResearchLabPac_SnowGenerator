@@ -1,2 +1,0 @@
-// ns_container.c
-

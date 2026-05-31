@@ -78,7 +78,7 @@ numeric_operatoroverloading(NdArray *a, NdArray *b, SDType restype, double (*op)
     int64_t total = get_totalelements(result->nd, result->dimensions);
     for (int64_t f = 0; f < total; f++) {
 		int64_t res_indices[NDARRAY_MAX_INDICES];
-		get_indices(result->nd, result->dimensions, f, res_indices);
+		assign_indices(result->nd, result->dimensions, f, res_indices);
 		char *adress_a = get_address(view_a->data, res_indices, view_a->strides, view_a->nd);
 		char *adress_b = get_address(view_b->data, res_indices, view_b->strides, view_b->nd);
 		double value_a = address_to_double(adress_a, a->sdtype);
@@ -136,7 +136,7 @@ alltype_operatoroverloading(NdArray *a, NdArray *b, bool (*op)(double, double))
     int64_t total = get_totalelements(result->nd, result->dimensions);
     for (int64_t f = 0; f < total; f++) {
 		int64_t res_indices[NDARRAY_MAX_INDICES];
-		get_indices(result->nd, result->dimensions, f, res_indices);
+		assign_indices(result->nd, result->dimensions, f, res_indices);
 		char *adress_a = get_address(view_a->data, res_indices, view_a->strides, view_a->nd);
 		char *adress_b = get_address(view_b->data, res_indices, view_b->strides, view_b->nd);
 		double value_a = address_to_double(adress_a, a->sdtype);
@@ -201,7 +201,7 @@ boolean_operatoroverloading(NdArray *a, NdArray *b, bool (*op)(bool, bool))
     int64_t total = get_totalelements(result->nd, result->dimensions);
     for (int64_t f = 0; f < total; f++) {
        int64_t res_indices[NDARRAY_MAX_INDICES];
-       get_indices(result->nd, result->dimensions, f, res_indices);
+       assign_indices(result->nd, result->dimensions, f, res_indices);
        char *adress_a = get_address(view_a->data, res_indices, view_a->strides, view_a->nd);
        char *adress_b = get_address(view_b->data, res_indices, view_b->strides, view_b->nd);
        bool value_a;

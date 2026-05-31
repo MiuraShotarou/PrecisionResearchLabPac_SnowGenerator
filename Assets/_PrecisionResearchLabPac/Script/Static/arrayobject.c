@@ -7,11 +7,10 @@
 NdArray* ndarray_create(int nd, int64_t *dimensions, int itemsize, SDType sdtype) {
     NdArray *arr = (NdArray *)malloc(sizeof(NdArray));
     if (!arr) return NULL;
-
     arr->nd       = nd;
     arr->itemsize = itemsize;
 	arr->sdtype   = sdtype;
-
+	assign_flags_c_init(&arr->flags);
     // dimensions をコピー
     arr->dimensions = (int64_t *)malloc(sizeof(int64_t) * nd);
     arr->strides    = (int64_t *)malloc(sizeof(int64_t) * nd);
@@ -19,7 +18,6 @@ NdArray* ndarray_create(int nd, int64_t *dimensions, int itemsize, SDType sdtype
         free(arr);
         return NULL;
     }
-
     // strides を計算（C順：末尾次元から計算）
     int64_t stride = (int64_t)itemsize;
     for (int i = nd - 1; i >= 0; i--) {
@@ -27,16 +25,14 @@ NdArray* ndarray_create(int nd, int64_t *dimensions, int itemsize, SDType sdtype
         arr->strides[i]    = stride;
         stride            *= dimensions[i];
     }
-
     // データ領域を確保
-    arr->data = (char *)malloc(stride, 1);
+    arr->data = (char *)malloc(stride);
     if (!arr->data) {
         free(arr->dimensions);
         free(arr->strides);
         free(arr);
         return NULL;
     }
-
     return arr;
 }
 
@@ -44,21 +40,70 @@ NdArray* ndarray_create(int nd, int64_t *dimensions, int itemsize, SDType sdtype
 // 解放
 // ----------------------------------------------------------------
 void ndarray_free(NdArray *arr) {
-    if (!arr) return; //エラー処理を追記すること
-	if (!arr->view) {
-        free(arr->data);  // view でない場合のみ解放
-    }
+    if (!arr) return;
+	if (arr->flags & NDARRAY_FLAG_OWNDATA) {
+    	free(arr->data);
+	}
     free(arr->dimensions);
     free(arr->strides);
     free(arr);
 }
+// reference is NOT_OWNDATA
+void ndarray_asreference(NdArray *arr, NdArray *out_reference) {
+    if (!arr || !out_reference) {
+		SET_ERROR_MESSAGE("ndarray_asreference: argument is NULL.");
+		goto fail;
+	}
+    if (!(out_reference->flags & NDARRAY_FLAG_OWNDATA)) {
+		SET_ERROR_MESSAGE("ndarray_asreference: out_reference is NULL.");
+		goto fail; //既に参照型ならリターンする
+	}
+    free(out_reference->data);
+    out_reference->data = arr->data;
+    out_reference->flags &= ~NDARRAY_FLAG_OWNDATA;
+	fail:
+		out_reference = NULL;
+		return;
+}
 
-void ndarray_asview(NdArray *arr, NdArray *out_view) {
-    if (!arr || out_view) return;
-    if (arr->view || !out_view->view) return;
-    free(out_view->data);
-    out_view->data = arr->data;
-    out_view->view = true;
+void reference_asndarray(NdArray *reference, NdArray *out_arr) {
+    if (!reference || !out_arr) {
+		SET_ERROR_MESSAGE("reference_asndarray: argument is NULL.");
+		goto fail;
+	}
+    if (reference->flags & NDARRAY_FLAG_OWNDATA) {
+		SET_ERROR_MESSAGE("reference_asndarray: reference is OWNDATA"); //参照型として渡された変数に生のデータが入っていた場合、リターンする
+		goto fail;
+	}
+    int64_t total = get_totalelements(reference->nd, reference->dimensions);
+    char *data = (char *)malloc(reference->itemsize * total);
+    if (data == NULL) {
+        SET_ERROR_MESSAGE("reference_asndarray: malloc failed.");
+		goto fail;
+    }
+    memcpy(data, reference->data, reference->itemsize * total);
+    free(out_arr->data);
+    out_arr->data = data;
+    out_arr->flags |= NDARRAY_FLAG_OWNDATA;
+	fail:
+		out_arr = NULL;
+        return;
+}
+
+bool checkndarray_flag_c_contiguous(NdArray *arr)
+{
+	if (arr == NULL) {
+		SET_ERROR_MESSAGE("checkndarray_flag_c_contiguous: arr is NULL.");
+		return false;
+	}
+	int64_t stride = arr->itemsize;
+    for (int i = arr->nd - 1; i > -1; i--) {
+        if (arr->strides[i] != stride) { 
+			return false; 
+		}
+        stride *= arr->dimensions[i];
+    }
+    return true;
 }
 
 // ----------------------------------------------------------------
@@ -83,9 +128,18 @@ ndarray_convert(void *src, int nd, int64_t *dimensions, int itemsize, SDType sdt
 	// ※注意※　stringなども処理が通ってしまうため、C#側で防いでおくこと
     NdArray *result = ndarray_create(nd, dimensions, itemsize, sdtype);
     if (result == NULL) return NULL;
-
     int64_t total = get_totalelements(dimensions, nd);
-    memcpy(result->data, src, total * itemsize);
+	if (src->flags & NDARRAY_FLAG_WRITEABLE) { //生データへの書き込みが可能であれば
+    	memcpy(result->data, src, total * itemsize);
+	}
+	else {
+		for (int64_t f = 0; f < total; f++) {
+    		int64_t indices[NDARRAY_MAX_DIMENSIONS];
+    		assign_indices(src->nd, src->dimensions, f, indices);
+    		char *src_address = get_address(src->data, indices, src->strides, src->nd);
+    		memcpy(result->data + f * src->itemsize, src_address, src->itemsize);
+		}
+	}
     return result;
 }
 /* get prop */

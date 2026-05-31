@@ -4,6 +4,8 @@ using System.Linq;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using Cysharp.Threading.Tasks;
+using Unity.VisualScripting;
+
 /// <summary> 基本仕様 </summary>
 // 静的型付け言語として実装する(ジェネリクスが異なるNdArray<T>同士の処理は原則行わない)
 // ユーザーが明示していない型変換は禁止
@@ -27,6 +29,8 @@ using Cysharp.Threading.Tasks;
 /// <summary> overflow対策は一旦しなくて良い </summary>
 /// <summary> dimensionsのlongはintにしたい </summary>
 /// <summary> C言語側 np → ns にリネームしたい </summary>
+/// <summary> C言語側 viewの転置処理 </summary>
+/// <summary> C言語側 flags NDARRAY_FLAG_OWNDATA の追記 </summary>
 /// <summary> C言語側 view によって操作を切り替える処理を追記すること </summary>
 /// <summary> C言語側 static付与の修正 </summary>
 /// <summary> C言語側 errorをgo to形式で記述。fail 内でのローカルポインタの解放 </summary>
@@ -43,17 +47,19 @@ namespace SnowflakeNative
     public partial class NdArray<T> : CSLanguageNative, INdArray where T : unmanaged
     {
         private IntPtr _pointer; //DisPoseを実装すべき
+        private bool _isView;
         /// <summary> for client method </summary>
         public NdArray(long[] dimensions, char order = 'C')
         {
             int nd = dimensions.Length;
             int itemsize = Marshal.SizeOf(typeof(T));
-            _pointer = ndarray_create(nd, dimensions, itemsize, order);
-            
+            SDType sdType = GenericsToSDType<T>();
+            _pointer = ndarray_create(nd, dimensions, itemsize, sdType);
             if (_pointer == IntPtr.Zero)
             {
                 throw new InvalidOperationException("ndarray_create failed.");
             }
+            _isView = false;
         }
         public NdArray(T scalar, char order = 'C') //OK
         {
@@ -70,9 +76,11 @@ namespace SnowflakeNative
         /// <summary> INdArray </summary>
         IntPtr INdArray._pointer => this._pointer; //Indexerでのみ使用中
         SDType INdArray._sdtype => GenericsToSDType<T>();
+        bool   INdArray._isView => this._isView;
 
-        /// <summary> client dispose </summary>
-        public static void Dispose(NdArray<T> src) => CSDispose(src._pointer); //ジェネリクス指定をしたくない
+        /// <summary> client method </summary>
+        public void Dispose() => CSDispose(this._pointer); //ジェネリクス指定をしたくない
+        public bool IsView() => this._isView;
 
         /// <summary> for developer method </summary>
         private NdArray()
@@ -424,7 +432,7 @@ namespace SnowflakeNative
         // ----------------------------------------------------------------
         /// <summary> NdArrayCreate </summary>
         [DllImport(DLL_Name, CallingConvention = CallingConvention.Cdecl)]
-        protected static extern IntPtr ndarray_create(int nd, long[] dimensions, int itemsize, char order);
+        protected static extern IntPtr ndarray_create(int nd, long[] dimensions, int itemsize, SDType sdType);
         /// <summary> NdArrayCopy </summary>
         [DllImport(DLL_Name, CallingConvention = CallingConvention.Cdecl)]
         protected static extern IntPtr ndarray_copy(IntPtr src);

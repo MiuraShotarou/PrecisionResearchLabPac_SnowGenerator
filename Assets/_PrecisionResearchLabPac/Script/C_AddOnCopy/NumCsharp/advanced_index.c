@@ -20,11 +20,11 @@ NdArrayIndexer.csで定義されたインデクサーから呼び出す関数を
 NdArray*
 get_ndarray_advancedindexing(NdArray *src, NdArray *mask)
 {
+    NdArray *result = NULL;
     if (src == NULL || mask == NULL) {
         SET_ERROR_MESSAGE("get_ndarray_advancedindexing: src or mask is NULL.");
         goto fail;
     }
-    
     // ①src->nd >= mask->nd のエラーチェック
     if (mask->nd > src->nd) {
         SET_ERROR_MESSAGE("get_ndarray_advancedindexing: mask->nd must be less than or equal to src->nd.");
@@ -38,8 +38,6 @@ get_ndarray_advancedindexing(NdArray *src, NdArray *mask)
         }
     }
     // geter用 NdArrayを形状だけ一致させ新規生成
-    NdArray *result = NULL; //空で良い
-    
     switch (mask->sdtype) {
         case Bool:
             result = boolindexingndarray_create(src, mask);
@@ -66,6 +64,7 @@ get_ndarray_advancedindexing(NdArray *src, NdArray *mask)
     }
     return result;
     fail:
+		ndarray_free(result);
         return NULL;
 }
 
@@ -113,7 +112,7 @@ set_ndarray_advancedindexing(NdArray *out_src, NdArray *mask, NdArray *value)
         break;
     }
     //破壊的操作のため戻り値は無し
-    fail;
+    fail:
     return;
 }
 
@@ -207,7 +206,7 @@ assign_ndarray_boolindexing(NdArray *src, NdArray *mask, NdArray *out_res)
     }
     // get 側でsrcの解放は行わない
     // 終了
-    fail;
+    fail:
         return;
 }
 
@@ -244,7 +243,7 @@ fancyindexingndarray_create(NdArray *src, NdArray *mask)
     }
     
     return result;
-    fail;
+    fail:
         return NULL;
 }
 
@@ -304,6 +303,6 @@ assign_ndarray_fancyindexing(NdArray *src, NdArray *mask, NdArray *out_res)
     }
     // get 側でsrcの解放は行わない
     // 終了
-    fail;
+    fail:
         return;
 }

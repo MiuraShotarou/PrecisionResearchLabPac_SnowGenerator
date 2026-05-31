@@ -116,7 +116,7 @@ get_last_flat(int size_nd, int64_t *size)
 
 /* index アクセス系 */
 void
-get_indices(int nd, int64_t *dimensions, int64_t flat, int64_t *out_indices)
+assign_indices(int nd, int64_t *dimensions, int64_t flat, int64_t *out_indices)
 {
     int64_t tmp = flat;
     for (int d = nd - 1; d > -1; d--) {

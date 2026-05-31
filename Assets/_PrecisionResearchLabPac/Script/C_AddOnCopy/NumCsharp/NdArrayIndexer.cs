@@ -10,7 +10,8 @@ namespace SnowflakeNative
     public interface INdArray
     {
         internal IntPtr _pointer { get; }
-        internal SDType _sdtype { get; }
+        internal SDType _sdtype  { get; }
+        internal bool   _isView  { get; }
     }
     public abstract partial class CLanguageNative
     {
