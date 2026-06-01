@@ -17,8 +17,11 @@ using Unity.VisualScripting;
 // NdArray<T>の破壊的操作を伴うメソッドは(関数名)+(NdArray<T>引数)の書き方で呼び出し可能
 // Tにはunmanaged型と、string型を指定可能
 // NdArrayではない型からNdArrayに変換する際は、NdArrayクラスのコンストラクタを使用する。従って、AsArrayメソッドは廃止する
+// 使用される基本プリミティブ型はint, floatだが、大型開発用にdouble, longを基本に利用したメソッド群クラスを提供する
+// NdArray.IsReferenceの場合、書き込み操作を禁止する
 
 /// <summary> C言語側へ渡すSDTypeを削除すること </summary>
+/// <summary> long, doubleなどのプリミティブ型操作見直し </summary>
 /// <summary> NdArrayViewクラスを実装する </summary>
 /// <summary> 実装しきれていないユーザーメソッドを実装する </summary>
 /// <summary> _pointer のnullチェックを忘れずに記述すること </summary>
@@ -35,19 +38,22 @@ using Unity.VisualScripting;
 /// <summary> C言語側 static付与の修正 </summary>
 /// <summary> C言語側 errorをgo to形式で記述。fail 内でのローカルポインタの解放 </summary>
 /// <summary> C言語側 size_tの使用を検討 </summary>
+/// <summary> C言語側 random.cの完成 </summary>
 /// <summary> NdArrayのコンストラクタに、ユーザーが要素を指定して初期化できる実装を追加する </summary>
 /// <summary> IDisposableインターフェイスの実装を検討 </summary>
 /// <summary> CSLanguageNativeクラス内でジェネリクスを使用しない書き方にリファクタしたい </summary>
 /// <summary> だいぶ先の話だが、Add関数やRemove関数も追加したいな </summary>
 /// <summary> np_whereのindicesの戻り値を、出来ればNdArray<int>と<long>で自動切り替えができるように変更したいな </summary>
 /// <summary> NdArrayError.csをコーディング </summary>
+/// <summary> NdArrayRandomクラスは、seedをコンストラクタに受け取ることで再現性のある乱数配列を生成することができ、またシード値に指定がない場合でも完全なランダム乱数配列を生成できる仕様とする。アルゴリズムにはPCG64を使用する </summary>
+/// <summary> RandomChoiceは関数名を揃えてオーバーロードで実装する </summary>
 namespace SnowflakeNative
 {
     /// <summary> Collection is NdArray </summary>
     public partial class NdArray<T> : CSLanguageNative, INdArray where T : unmanaged
     {
         private IntPtr _pointer; //DisPoseを実装すべき
-        private bool _isView;
+        private bool _isReference;
         /// <summary> for client method </summary>
         public NdArray(long[] dimensions, char order = 'C')
         {
@@ -59,7 +65,7 @@ namespace SnowflakeNative
             {
                 throw new InvalidOperationException("ndarray_create failed.");
             }
-            _isView = false;
+            _isReference = false;
         }
         public NdArray(T scalar, char order = 'C') //OK
         {
@@ -76,11 +82,11 @@ namespace SnowflakeNative
         /// <summary> INdArray </summary>
         IntPtr INdArray._pointer => this._pointer; //Indexerでのみ使用中
         SDType INdArray._sdtype => GenericsToSDType<T>();
-        bool   INdArray._isView => this._isView;
+        bool   INdArray.IsReference => this._isReference;
 
         /// <summary> client method </summary>
         public void Dispose() => CSDispose(this._pointer); //ジェネリクス指定をしたくない
-        public bool IsView() => this._isView;
+        public bool IsView() => this._isReference;
 
         /// <summary> for developer method </summary>
         private NdArray()
@@ -97,7 +103,7 @@ namespace SnowflakeNative
         /// <summary> NdArrayCopy </summary>
         public NdArray<T> NdArrayCopy() => Packing(new NdArray<T>(), CSCopy(this._pointer));
         /// <summary> RandomChoice </summary>
-        public NdArray<T> RandomChoice(long[] size, bool replace = true, float[] p = null) => Packing(new NdArray<T>(), CSRandomChoice<T>(this._pointer, size, replace, p));
+        public NdArray<T> RandomChoice(long[] size, bool replace = true, float[] p = null) => Packing(new NdArray<T>(), CSRandomChoice(this._pointer, size, replace, p));
         /// <summary> Ravel </summary>
         public NdArray<T> Ravel() => Packing(new NdArray<T>(), CSRavel(this._pointer));
         /// <summary> Reshape </summary>
@@ -108,7 +114,7 @@ namespace SnowflakeNative
         /// <summary> Cast </summary>
         public NdArray<TResult> Cast<TResult>() where TResult : unmanaged => Packing(new NdArray<TResult>(), CSArrayCast<TResult>(this._pointer));
         /// <summary> Pad </summary>
-        public NdArray<T> Pad(int pad_width, PadModeType mode, double value) => Packing(new NdArray<T>(), CSPad<T>(this._pointer, pad_width, mode, value));
+        public NdArray<T> Pad(int pad_width, PadModeType mode, double value) => Packing(new NdArray<T>(), CSPad(this._pointer, pad_width, mode, value));
         /// <summary> BroadcastTo </summary>
         public NdArray<T> BroadcastTo(long[] size) => Packing(new NdArray<T>(), CSBroadcastTo(this._pointer, size));
         
@@ -125,10 +131,10 @@ namespace SnowflakeNative
         public static NdArray<T> Arange(int end, char order) => Packing(new NdArray<T>(), CSArange<T>(0, end, 1, order));
         public static NdArray<T> Arange(int start, int end, char order) => Packing(new NdArray<T>(), CSArange<T>(start, end, 1, order));
         public static NdArray<T> Arange(int start, int end, int step, char order) => Packing(new NdArray<T>(), CSArange<T>(start, end, step, order));
-        /// <summary> DArange </summary>
-        public static NdArray<T> DArange(double end, char order) => Packing(new NdArray<T>(), CSDArange<T>(0, end, 1, order));
-        public static NdArray<T> DArange(double start, double end, char order) => Packing(new NdArray<T>(), CSDArange<T>(start, end, 1, order));
-        public static NdArray<T> DArange(double start, double end, double step, char order) => Packing(new NdArray<T>(), CSDArange<T>(start, end, step, order));
+        /// <summary> LArange </summary>
+        public static NdArray<T> LArange(double end, char order) => Packing(new NdArray<T>(), CSDArange<T>(0, end, 1, order));
+        public static NdArray<T> LArange(double start, double end, char order) => Packing(new NdArray<T>(), CSDArange<T>(start, end, 1, order));
+        public static NdArray<T> LArange(double start, double end, double step, char order) => Packing(new NdArray<T>(), CSDArange<T>(start, end, step, order));
         /// <summary> Where </summary>
         public static NdArray<long> Where(NdArray<bool> conditions) => Packing(new NdArray<long>(), CSWhere(conditions._pointer));
         public static NdArray<T> Where(NdArray<bool> conditions, NdArray<T> a, NdArray<T> b) => Packing(new NdArray<T>(), CSWhere(conditions._pointer, a._pointer, b._pointer));
@@ -155,7 +161,6 @@ namespace SnowflakeNative
             ndarray_free(pointer);
             pointer = IntPtr.Zero;
         }
-        
         // 引数, 戻り値に NdArray<T>の使用を禁止
         protected static IntPtr CSCopy(IntPtr pointer) => ndarray_copy(pointer);
         
@@ -201,17 +206,19 @@ namespace SnowflakeNative
             }
             return result;
         }
-        protected static IntPtr CSRandomChoice<T>(IntPtr pointer, long[] size, bool replace, float[] p) where T : unmanaged
+        protected static IntPtr CSRandomChoice_Scalar<T>(int max, int count, bool replace = true) where T : unmanaged //値の重複有り
         {
-            SDType resType = GenericsToSDType<T>();
-            int size_nd = size.Length, p_nd = p?.Length ?? 0;
-            return np_random_choice(pointer, size, size_nd, replace, p, p_nd, resType);
+            SDType sdType = GenericsToSDType<T>();
+            return np_random_choice_argumentscalar(max, count, replace, sdType);
+        }
+        protected static IntPtr CSRandomChoice_NdArray(IntPtr values, int count, bool replace = true)
+        {
+            return np_random_choice_argumentndarray(values, count, replace);
         }
         /// <summary>  </summary>
-        protected static IntPtr CSPad<T>(IntPtr pointer, int pad_wdith, PadModeType mode = PadModeType.Constant, double value = 0d) where T : unmanaged
+        protected static IntPtr CSPad(IntPtr pointer, int pad_wdith, PadModeType mode = PadModeType.Constant, double value = 0)
         {
-            SDType resType = GenericsToSDType<T>();
-            return np_pad(pointer, pad_wdith, mode, value, resType);
+            return np_pad(pointer, pad_wdith, mode, value);
         }
 
         protected static IntPtr CSConcatenate<T>(IntPtr[] pointerArray, int axis = 0) where T : unmanaged
@@ -451,7 +458,7 @@ namespace SnowflakeNative
         /// <summary> Arange </summary>
         [DllImport(DLL_Name, CallingConvention = CallingConvention.Cdecl)]
         protected static extern IntPtr np_arange(int start, int end, int step, SDType sdType, char order);
-        /// <summary> DArange </summary>
+        /// <summary> LArange </summary>
         [DllImport(DLL_Name, CallingConvention = CallingConvention.Cdecl)]
         protected static extern IntPtr np_d_arange(double start, double end, double step, SDType sdtype, char order);
         /// <summary> Indices </summary>
@@ -478,7 +485,7 @@ namespace SnowflakeNative
         protected static extern IntPtr np_transpose(IntPtr src, long[] size);
         /// <summary> Pad </summary>
         [DllImport(DLL_Name, CallingConvention = CallingConvention.Cdecl)]
-        protected static extern IntPtr np_pad(IntPtr src, int pad_width, PadModeType mode, double value, SDType sdtype);
+        protected static extern IntPtr np_pad(IntPtr src, int pad_width, PadModeType mode, double value);
         /// <summary> Concatenate </summary>
         protected static extern IntPtr np_concatenate(IntPtr[] arrays, int array_count, int axis, SDType sdtype);
         /// <summary> Stack </summary>
@@ -527,7 +534,13 @@ namespace SnowflakeNative
         // ----------------------------------------------------------------
         /// <summary> RandomChoice </summary>
         [DllImport(DLL_Name, CallingConvention = CallingConvention.Cdecl)]
-        protected static extern IntPtr np_random_choice(IntPtr src, long[] size, int size_length, bool replace, float[] p, int p_length, SDType sdtype);
+        protected static extern IntPtr np_random_choice_argumentscalar(int max, int count, bool replace, SDType sdtype);
+        [DllImport(DLL_Name, CallingConvention = CallingConvention.Cdecl)]
+        protected static extern IntPtr np_random_choice_argumentndarray(IntPtr values, int count, bool replace);        /// <summary> RandomChoice </summary>
+        [DllImport(DLL_Name, CallingConvention = CallingConvention.Cdecl)]
+        protected static extern IntPtr np_d_random_choice_argumentscalar(double max, double count, bool replace, SDType sdtype);
+        [DllImport(DLL_Name, CallingConvention = CallingConvention.Cdecl)]
+        protected static extern IntPtr np_d_random_choice_argumentndarray(IntPtr values, double count, bool replace);
         /// <summary> RandomRand（0〜1の乱数） </summary>
         [DllImport(DLL_Name, CallingConvention = CallingConvention.Cdecl)]
         protected static extern IntPtr np_random_rand(long[] size, int size_nd);

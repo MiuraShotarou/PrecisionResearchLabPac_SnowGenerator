@@ -1,99 +1,81 @@
 // random.c
-NdArray* // ①(最大値, 個数, + replace=false(値の重複なし))
-np_random_choice_argumentscalar(int max, int count, bool replace, SDType sdtype)
+
+/* 新しい試み
+typedef struct {
+    uint64_t state;  // 現在の内部状態
+    uint64_t inc;    // インクリメント値（奇数である必要がある）
+} PCG64State;
+
+typedef struct {
+    PCG64State pcg_state;
+    uint64_t seed;
+} NdRandom;
+*/
+
+typedef struct {
+    uint64_t state;  // 初期値はseedで、indexがインクリメントされていく度に更新されていく
+    uint64_t inc;    // インクリメント値（奇数である必要がある）。stateが同じでも、ここが違えば異なった乱数列になる。stepのようなもの。固定値である。
+} PCG64State;
+
+typedef struct {
+    PCG64State pcg_state;
+    uint64_t seed;
+} NdRandom;
+
+//  ここから関数
+#define PCG64_MULTIPLIER  6364136223846793005ULL
+#define PCG64_INCREMENT   1442695040888963407ULL
+#define PCG64_SHIFT_A     18u
+#define PCG64_SHIFT_B     27u
+#define PCG64_SHIFT_C     59u
+#define PCG64_ROTATION    31u
+// PCG64の乱数生成
+static uint32_t
+pcg64_random(PCG64State *state)
 {
-    NdArray* result = NULL;
-    NdArray* values = NULL;
-    values = np_arange(0, max, 1, sdtype, 'C');
-    if (values == NULL) {
-        SET_ERROR_MESSAGE("np_random_choice_scalar: values is NULL.");
-        goto fail;
-    }
-    result = np_random_choice_argumentndarray(values, count, replace);
-    if (result == NULL) {
-        SET_ERROR_MESSAGE("np_random_choice_scalar: result is NULL.");
-        goto fail;
-    }
-    ndarray_free(values);
-    return result;
-    fail:
-        ndarray_free(values);
-        ndarray_free(result);
-        return NULL;
+    uint64_t oldstate = state->state;
+    state->state = oldstate * PCG64_MULTIPLIER + state->inc;
+    uint32_t xorshifted = ((oldstate >> PCG64_SHIFT_A) ^ oldstate) >> PCG64_SHIFT_B;
+    uint32_t rot = oldstate >> PCG64_SHIFT_C;
+    return (xorshifted >> rot) | (xorshifted << ((-rot) & PCG64_ROTATION));
 }
-/* np_random_choice */
-NdArray* //引数 ②(配列, 個数) + replace=false(値の重複なし), count == 0 の場合は空の配列が返される
-np_random_choice_argumentndarray(NdArray *values, int count, bool replace)
+
+// NdRandomの生成
+NdRandom*
+ndrandom_create(uint64_t seed)
 {
-    NdArray *result = NULL;
-    if (values == NULL) {
-        SET_ERROR_MESSAGE("np_random_choice_ndarray: values is NULL.");
-        goto fail;
-    }
-    if (values->nd != 1) {
-        SET_ERROR_MESSAGE("np_random_choice_ndarray: values must be 1-dimensional.");
-        goto fail;
-    }
-    if (count < 0) {
-        SET_ERROR_MESSAGE("np_random_choice_ndarray: count must be non-negative.");
-        goto fail;
-    }
-    int64_t dimensions[NDARRAY_MIN_DIMENSIONS] = { count };
-    if (count == 0) {
-        dimensions[0] = NDARRAY_MIN_DIMENSIONS;
-        result = np_zeros(NDARRAY_MIN_ND, dimensions, values->sdtype);
-        if (result == NULL) {
-            SET_ERROR_MESSAGE("np_random_choice_ndarray: result is NULL.");
-            goto fail;
-        }
-        return result;
-    }
-    DoubleScalarCast cast = doublescalar_cast_by_sdtype[values->sdtype];
-    if (cast == NULL) {
-        SET_ERROR_MESSAGE("np_random_choice_ndarray: cast is NULL.");
-        goto fail;
-    }
-    result = ndarray_create(NDARRAY_MIN_ND, dimensions, values->itemsize, values->sdtype);
-    if (result == NULL) {
-        SET_ERROR_MESSAGE("np_random_choice_ndarray: result is NULL.");
-        goto fail;
-    }
-    int64_t total = get_totalelements(values->nd, values->dimensions);
-    if (!replace && count > total) {
-        SET_ERROR_MESSAGE("np_random_choice_ndarray: count exceeds total elements when replace is false.");
-        goto fail;
-    }
-    if (replace) { //値の重複を許容
-        for (int i = 0; i < count; i++) {
-            int f = rand() % total; //次元index
-            char* address = values->data + f * values->itemsize;
-            double value = address_to_double(address, values->sdtype);
-            cast(result->data + i * result->itemsize, value);
-        }
-    }
-    else {
-        // Fisher-Yates
-        int indexes[total];
-        for (int i = 0; i < total; i++) {
-            indexes[i] = i;
-        }
-        for (int i = 0; i < count; i++) {
-            // i 以降のランダムな値を選ぶ
-            int r = i + rand() % (total - i);
-            int tmp = indexes[i];
-            indexes[i] = indexes[r];
-            indexes[r] = tmp;
-        }
-        for (int i = 0; i < count; i++) {
-            // indexes[i] を使って values から値を取り出す
-            int f = indexes[i];
-            char* address = values->data + f * values->itemsize;
-            double value = address_to_double(address, values->sdtype);
-            cast(result->data + i * result->itemsize, value);
-        }
-    }
-    return result;
-    fail:
-        ndarray_free(result);
+    NdRandom *rng = (NdRandom *)malloc(sizeof(NdRandom));
+    if (rng == NULL) {
+        SET_ERROR_MESSAGE("ndrandom_create: malloc failed.");
         return NULL;
+    }
+    rng->seed = seed;
+    rng->pcg_state.state = seed;
+    rng->pcg_state.inc = PCG64_INCREMENT | 1; // 奇数を保証
+    pcg64_random(&rng->pcg_state); // 初期状態を1回進める
+    return rng;
+}
+
+// NdRandomの解放
+void
+ndrandom_free(NdRandom *rng)
+{
+    if (rng == NULL) return;
+    free(rng);
+}
+
+// random.Range
+int32_t
+np_random_range(NdRandom *rng, int32_t min, int32_t max)
+{
+    if (rng == NULL) {
+        SET_ERROR_MESSAGE("np_random_range: rng is NULL.");
+        return -1;
+    }
+    if (min >= max) {
+        SET_ERROR_MESSAGE("np_random_range: min must be less than max.");
+        return -1;
+    }
+    uint32_t value = pcg64_random(&rng->pcg_state);
+    return min + (int32_t)(value % (uint32_t)(max - min));
 }

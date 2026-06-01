@@ -11,7 +11,7 @@ namespace SnowflakeNative
     {
         internal IntPtr _pointer { get; }
         internal SDType _sdtype  { get; }
-        internal bool   _isView  { get; }
+        internal bool   IsReference  { get; }
     }
     public abstract partial class CLanguageNative
     {
