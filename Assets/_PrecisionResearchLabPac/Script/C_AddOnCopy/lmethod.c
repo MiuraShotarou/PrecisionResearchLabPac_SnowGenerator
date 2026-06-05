@@ -30,7 +30,7 @@ np_l_arange(int64_t start, int64_t end, int64_t step, SDType sdtype, char order)
         SET_ERROR_MESSAGE("np_arange: unsupported sdtype for cast.");
         goto fail;
     }
-	for (int i = 0; i < dimensions[0]; i++) {
+	for (int64_t i = 0; i < dimensions[0]; i++) {
 		double value = (double)(start + i * step);
         cast(result->data + i * itemsize, value);
 	}

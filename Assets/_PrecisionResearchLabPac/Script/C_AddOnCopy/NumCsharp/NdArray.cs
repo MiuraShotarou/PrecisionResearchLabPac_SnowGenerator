@@ -102,8 +102,6 @@ namespace SnowflakeNative
         /// <summary> instance method </summary> //thisのTとメソッド内のTは同一の型として解釈される. //戻り値のTが引数のTと異なる可能性があるメソッドはTRsultを明記している。
         /// <summary> NdArrayCopy </summary>
         public NdArray<T> NdArrayCopy() => Packing(new NdArray<T>(), CSCopy(this._pointer));
-        /// <summary> RandomChoice </summary>
-        public NdArray<T> RandomChoice(long[] size, bool replace = true, float[] p = null) => Packing(new NdArray<T>(), CSRandomChoice(this._pointer, size, replace, p));
         /// <summary> Ravel </summary>
         public NdArray<T> Ravel() => Packing(new NdArray<T>(), CSRavel(this._pointer));
         /// <summary> Reshape </summary>
@@ -117,6 +115,10 @@ namespace SnowflakeNative
         public NdArray<T> Pad(int pad_width, PadModeType mode, double value) => Packing(new NdArray<T>(), CSPad(this._pointer, pad_width, mode, value));
         /// <summary> BroadcastTo </summary>
         public NdArray<T> BroadcastTo(long[] size) => Packing(new NdArray<T>(), CSBroadcastTo(this._pointer, size));
+        /// <summary> RandomChoice </summary>
+        public NdArray<T> Choice(Random random, long[] size, bool replace = true, float[] p = null) => Packing(new NdArray<T>(), CSChoice(random, this._pointer, size, replace, p));
+        (int max, int count, bool replace, SDType sdtype)
+        public NdArray<T> Choice(int max, int count, bool replace) => Packing(new NdArray<T>(), CSChoice(random, this._pointer, size, replace, p));
         
         /// <summary> no instance method compulsion T </summary> //NdArray<T>.(メソッド名)でメソッド内のTを強制指定
         /// <summary> Zeros </summary>

@@ -1,16 +1,16 @@
 // lrandom.c
 
 NdArray* // ①(最大値, 個数, + replace=false(値の重複なし))
-np_l_random_choice_argumentscalar(int64_t max, int64_t count, bool replace, SDType sdtype)
+np_l_random_choice_argumentscalar(int64_t max, int64_t count, bool replace, SDType sdtype, Random *random)
 {
     NdArray* result = NULL;
     NdArray* values = NULL;
-    values = np_arange(0, max, 1, sdtype, 'C'); //
+    values = np_l_arange(0, max, 1, sdtype, 'C');
     if (values == NULL) {
         SET_ERROR_MESSAGE("np_random_choice_scalar: values is NULL.");
         goto fail;
     }
-    result = np_l_random_choice_argumentndarray(values, count, replace);
+    result = np_l_random_choice_argumentndarray(values, count, replace, random);
     if (result == NULL) {
         SET_ERROR_MESSAGE("np_random_choice_scalar: result is NULL.");
         goto fail;
@@ -24,9 +24,10 @@ np_l_random_choice_argumentscalar(int64_t max, int64_t count, bool replace, SDTy
 }
 /* np_random_choice */
 NdArray* //引数 ②(配列, 個数) + replace=false(値の重複なし), count == 0 の場合は空の配列が返される
-np_l_random_choice_argumentndarray(NdArray *values, int64_t count, bool replace)
+np_l_random_choice_argumentndarray(NdArray *values, int64_t count, bool replace, Random *random)
 {
     NdArray *result = NULL;
+    int64_t *indexes = NULL;
     if (values == NULL) {
         SET_ERROR_MESSAGE("np_random_choice_ndarray: values is NULL.");
         goto fail;
@@ -65,8 +66,9 @@ np_l_random_choice_argumentndarray(NdArray *values, int64_t count, bool replace)
         goto fail;
     }
     if (replace) { //値の重複を許容
-        for (int i = 0; i < count; i++) {
-            int f = rand() % total; //次元index
+        for (int64_t i = 0; i < count; i++) {
+            uint32_t rand = get_random(&random->param);
+            int64_t f = rand % total; //次元index
             char* address = values->data + f * values->itemsize;
             double value = address_to_double(address, values->sdtype);
             cast(result->data + i * result->itemsize, value);
@@ -74,27 +76,33 @@ np_l_random_choice_argumentndarray(NdArray *values, int64_t count, bool replace)
     }
     else {
         // Fisher-Yates
-        int indexes[total];
-        for (int i = 0; i < total; i++) {
+        indexes = (int64_t *)malloc(sizeof(int64_t) * total);
+        if (indexes == NULL) {
+            SET_ERROR_MESSAGE("np_random_choice_ndarray: malloc failed.");
+            goto fail;
+        }
+        for (int64_t i = 0; i < total; i++) {
             indexes[i] = i;
         }
-        for (int i = 0; i < count; i++) {
-            // i 以降のランダムな値を選ぶ
-            int r = i + rand() % (total - i);
-            int tmp = indexes[i];
+        for (int64_t i = 0; i < count; i++) {
+            uint32_t rand = get_random(&random->param);
+            int64_t r = i + rand % (total - i);
+            int64_t tmp = indexes[i];
             indexes[i] = indexes[r];
             indexes[r] = tmp;
         }
-        for (int i = 0; i < count; i++) {
+        for (int64_t i = 0; i < count; i++) {
             // indexes[i] を使って values から値を取り出す
-            int f = indexes[i];
+            int64_t f = indexes[i];
             char* address = values->data + f * values->itemsize;
             double value = address_to_double(address, values->sdtype);
             cast(result->data + i * result->itemsize, value);
         }
     }
+    free(indexes);
     return result;
     fail:
+        free(indexes);
         ndarray_free(result);
         return NULL;
 }

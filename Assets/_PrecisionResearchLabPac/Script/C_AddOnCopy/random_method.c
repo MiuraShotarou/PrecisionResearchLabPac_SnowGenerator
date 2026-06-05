@@ -1,7 +1,43 @@
 // random_method.c
 
+// random.Range
+float
+np_random_random(Random *random)
+{
+	if (random == NULL) {
+        SET_ERROR_MESSAGE("np_random_random: random is NULL.");
+        return -1.0;
+    }
+    uint32_t rand = get_random(&random->param);
+    return (float)rand / (float)UINT32_MAX;
+}
+
+int32_t
+np_random_range(Random *rng, int32_t min, int32_t max)
+{
+    if (rng == NULL) {
+        SET_ERROR_MESSAGE("np_random_range: rng is NULL.");
+        return -1;
+    }
+    if (min >= max) {
+        SET_ERROR_MESSAGE("np_random_range: min must be less than max.");
+        return -1;
+    }
+    uint32_t value = get_random(&rng->param);
+    return min + (int32_t)(value % (uint32_t)(max - min));
+}
+
+void     np_random_shuffle(Random *random, NdArray *src);                 // 破壊的操作
+NdArray* np_random_permutation(Random *random, NdArray *src);             // コピーを返す
+NdArray* np_random_uniform(Random *random, double low, double high, int64_t *dimensions, int nd);
+NdArray* np_random_normal(Random *random, double loc, double scale, int64_t *dimensions, int nd);
+NdArray* np_random_randint(Random *random, int32_t low, int32_t high, int64_t *dimensions, int nd);
+NdArray* np_random_binomial(Random *random, int32_t n, double p, int64_t *dimensions, int nd);
+NdArray* np_random_poisson(Random *random, double lam, int64_t *dimensions, int nd);
+NdArray* np_random_exponential(Random *random, double scale, int64_t *dimensions, int nd);
+
 NdArray* // ①(最大値, 個数, + replace=false(値の重複なし))
-np_random_choice_argumentscalar(int max, int count, bool replace, SDType sdtype)
+np_random_choice_argumentscalar(int max, int count, bool replace, SDType sdtype, Random *random)
 {
     NdArray* result = NULL;
     NdArray* values = NULL;
@@ -10,7 +46,7 @@ np_random_choice_argumentscalar(int max, int count, bool replace, SDType sdtype)
         SET_ERROR_MESSAGE("np_random_choice_scalar: values is NULL.");
         goto fail;
     }
-    result = np_random_choice_argumentndarray(values, count, replace);
+    result = np_random_choice_argumentndarray(values, count, replace, random);
     if (result == NULL) {
         SET_ERROR_MESSAGE("np_random_choice_scalar: result is NULL.");
         goto fail;
@@ -24,9 +60,10 @@ np_random_choice_argumentscalar(int max, int count, bool replace, SDType sdtype)
 }
 /* np_random_choice */
 NdArray* //引数 ②(配列, 個数) + replace=false(値の重複なし), count == 0 の場合は空の配列が返される
-np_random_choice_argumentndarray(NdArray *values, int count, bool replace)
+np_random_choice_argumentndarray(NdArray *values, int count, bool replace, Random *random)
 {
     NdArray *result = NULL;
+    int *indexes = NULL;
     if (values == NULL) {
         SET_ERROR_MESSAGE("np_random_choice_ndarray: values is NULL.");
         goto fail;
@@ -64,9 +101,11 @@ np_random_choice_argumentndarray(NdArray *values, int count, bool replace)
         SET_ERROR_MESSAGE("np_random_choice_ndarray: count exceeds total elements when replace is false.");
         goto fail;
     }
+    //
     if (replace) { //値の重複を許容
         for (int i = 0; i < count; i++) {
-            int f = rand() % total; //次元index
+            uint32_t rand = get_random(&random->param);
+            int f = rand % total; //次元index
             char* address = values->data + f * values->itemsize;
             double value = address_to_double(address, values->sdtype);
             cast(result->data + i * result->itemsize, value);
@@ -74,13 +113,18 @@ np_random_choice_argumentndarray(NdArray *values, int count, bool replace)
     }
     else {
         // Fisher-Yates
-        int indexes[total];
+        indexes = (int *)malloc(sizeof(int) * total);
+        if (indexes == NULL) {
+            SET_ERROR_MESSAGE("np_random_choice_ndarray: malloc failed.");
+            goto fail;
+        }
         for (int i = 0; i < total; i++) {
             indexes[i] = i;
         }
         for (int i = 0; i < count; i++) {
             // i 以降のランダムな値を選ぶ
-            int r = i + rand() % (total - i);
+            uint32_t rand = get_random(&random->param);
+            int r = i + rand % (total - i);
             int tmp = indexes[i];
             indexes[i] = indexes[r];
             indexes[r] = tmp;
@@ -93,8 +137,10 @@ np_random_choice_argumentndarray(NdArray *values, int count, bool replace)
             cast(result->data + i * result->itemsize, value);
         }
     }
+    free(indexes);
     return result;
     fail:
+        free(indexes);
         ndarray_free(result);
         return NULL;
 }
