@@ -53,7 +53,8 @@ namespace SnowflakeNative
     /// <summary> Collection is NdArray </summary>
     public partial class NdArray<T> : CSLanguageNative, INdArray where T : unmanaged
     {
-        private IntPtr _pointer; //DisPoseを実装すべき
+        // private IntPtr _pointer; //IDisPosableを実装すべき
+        private IntPtr _pointer;
         private bool _isReference;
         /// <summary> for client method </summary>
         public NdArray(long[] dimensions, char order = 'C')
@@ -80,15 +81,8 @@ namespace SnowflakeNative
         {
             // TODO
         }
-        /// <summary> INdArray </summary>
-        IntPtr INdArray._pointer => this._pointer; //Indexerでのみ使用中
-        SDType INdArray._sdtype => GenericsToSDType<T>();
-        bool   INdArray.IsReference => this._isReference;
-
-        /// <summary> for client method </summary>
         public void Dispose() => CSDispose(this._pointer); //ジェネリクス指定をしたくない
         public bool IsView() => this._isReference;
-
         /// <summary> for developer method </summary>
         private NdArray()
         {
@@ -99,10 +93,15 @@ namespace SnowflakeNative
             src._pointer = pointer;
             return src;
         }
+        
+        /// <summary> INdArray </summary>
+        IntPtr INdArray._pointer => this._pointer; //Indexerでのみ使用中
+        SDType INdArray._sdtype => GenericsToSDType<T>();
+        bool   INdArray.IsReference => this._isReference;
 
         /// <summary> instance method </summary> //thisのTとメソッド内のTは同一の型として解釈される. //戻り値のTが引数のTと異なる可能性があるメソッドはTRsultを明記している。
-        /// <summary> NdArrayCopy </summary>
-        public NdArray<T> NdArrayCopy() => Packing(new NdArray<T>(), CSCopy(this._pointer));
+        /// <summary> Copy </summary>
+        public NdArray<T> Copy() => Packing(new NdArray<T>(), CSCopy(this._pointer));
         /// <summary> Ravel </summary>
         public NdArray<T> Ravel() => Packing(new NdArray<T>(), CSRavel(this._pointer));
         /// <summary> Reshape </summary>
@@ -118,6 +117,8 @@ namespace SnowflakeNative
         public NdArray<T> BroadcastTo(long[] size) => Packing(new NdArray<T>(), CSBroadcastTo(this._pointer, size));
         /// <summary> RandomChoice </summary>
         // np_random_choice_argumentscalar(int max, int count, bool replace, SDType sdtype, Random *random)
+        
+        // 引数にクラス参照がない
         public NdArray<T> Choice(int max, int count, bool replace = true)
         {
             using (var random = new Random())
@@ -125,6 +126,7 @@ namespace SnowflakeNative
                 return Packing(new NdArray<T>(), CSChoice<T>(random.Pointer, max, count, replace));
             }
         }
+        // 引数にRandomとジェネリクス参照あり
         public NdArray<T> Choice(Random random, int max, int count, bool replace = true) => Packing(new NdArray<T>(), CSChoice<T>(random.Pointer, max, count, replace));
         
         /// <summary> no instance method compulsion T </summary> //NdArray<T>.(メソッド名)でメソッド内のTを強制指定
@@ -152,6 +154,8 @@ namespace SnowflakeNative
         public static NdArray<T> VStack(NdArray<T>[] srcArray) => Packing(new NdArray<T>(), CSVStack(srcArray.Select(arr => arr._pointer).ToArray()));
         /// <summary> Choice </summary>
         // np_random_choice_argumentndarray(NdArray *values, int count, bool replace, Random *random)
+        
+        // 引数にNdArray<T>参照あり
         public NdArray<T> Choice(int count, bool replace = true)
         {
             using (var random = new Random())
@@ -159,6 +163,7 @@ namespace SnowflakeNative
                 return Packing(new NdArray<T>(), CSChoice(random.Pointer, this._pointer, count, replace));
             }
         }
+        // 引数にNdArray<T>とRandom参照あり
         public NdArray<T> Choice(Random random, int count, bool replace = true) => Packing(new NdArray<T>(), CSChoice(random.Pointer, this._pointer, count, replace));
 
         /// <summary> Concatenate </summary>
@@ -449,7 +454,7 @@ namespace SnowflakeNative
         /// <summary> NdArrayCreate </summary>
         [DllImport(DLL_Name, CallingConvention = CallingConvention.Cdecl)]
         protected static extern IntPtr ndarray_create(int nd, long[] dimensions, int itemsize, SDType sdType);
-        /// <summary> NdArrayCopy </summary>
+        /// <summary> Copy </summary>
         [DllImport(DLL_Name, CallingConvention = CallingConvention.Cdecl)]
         protected static extern IntPtr ndarray_copy(IntPtr src);
         /// <summary> Zeros </summary>

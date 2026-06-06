@@ -67,8 +67,8 @@ np_random_l_choice_argumentndarray(Random *random, NdArray *values, int64_t coun
     }
     if (replace) { //値の重複を許容
         for (int64_t i = 0; i < count; i++) {
-            uint32_t rand = get_random(&random->param);
-            int64_t f = rand % total; //次元index
+            uint64_t rand = ((uint64_t)get_random(&random->param) << 32) | get_random(&random->param);
+            int64_t f = (int64_t)(rand % (uint64_t)total); //次元index
             char* address = values->data + f * values->itemsize;
             double value = address_to_double(address, values->sdtype);
             cast(result->data + i * result->itemsize, value);
@@ -85,8 +85,8 @@ np_random_l_choice_argumentndarray(Random *random, NdArray *values, int64_t coun
             indexes[i] = i;
         }
         for (int64_t i = 0; i < count; i++) {
-            uint32_t rand = get_random(&random->param);
-            int64_t r = i + rand % (total - i);
+            uint64_t rand = ((uint64_t)get_random(&random->param) << 32) | get_random(&random->param);
+            int64_t r = i + (int64_t)(rand % (uint64_t)(total - i));
             int64_t tmp = indexes[i];
             indexes[i] = indexes[r];
             indexes[r] = tmp;

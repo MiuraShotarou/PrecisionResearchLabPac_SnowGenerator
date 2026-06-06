@@ -33,6 +33,11 @@ namespace SnowflakeNative
         // {
         //     // TODO
         // }
+        /// <summary> For internal use only. Converts an IntPtr to NdArray. </summary>
+        public static explicit operator NdArray<T>(IntPtr pointer)
+        {
+            return Packing(new NdArray<T>(), pointer);
+        }
         // ----------------------------------------------------------------
         // 算術演算子
         // ----------------------------------------------------------------

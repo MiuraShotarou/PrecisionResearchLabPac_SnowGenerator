@@ -29,8 +29,10 @@ public class Memo : MonoBehaviour
 
         // list = new List<int>();
         hoge.Ravel();
-        hoge = hoge.NdArrayCopy();
+        hoge = hoge.Copy();
         new SnowflakeNative.Random(1).Choice(hoge, 1, true);
+        
+        
     }
 
     private void Start()

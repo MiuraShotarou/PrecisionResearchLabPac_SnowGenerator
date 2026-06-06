@@ -16,7 +16,7 @@ typedef struct {
 #define PCG64_SHIFT_B     27u
 #define PCG64_SHIFT_C     59u
 #define PCG64_ROTATION    31u
-// PCG64の乱数生成
+// PCG64の乱数生成(最大値約42億)
 static uint32_t
 get_random(PCG64Param *state)
 {

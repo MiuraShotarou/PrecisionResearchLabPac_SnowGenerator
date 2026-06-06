@@ -20,7 +20,8 @@ namespace SnowflakeNative
     {
         /// <summary> Choice </summary>
         // np_random_choice_argumentndarray(NdArray *values, int count, bool replace, Random *random)
-        public static NdArray<T> Choice<T>(this Random random, NdArray<T> values, int count, bool replace = true) where T : unmanaged => values.Choice(random, count, replace);
+        // public static NdArray<T> Choice<T>(this Random random, NdArray<T> values, int count, bool replace = true) where T : unmanaged => values.Choice(random, count, replace);
+        public static NdArray<T> Choice<T>(this Random random, NdArray<T> values, int count, bool replace = true) where T : unmanaged => random.Choice(random, count, replace);
     }
     
     public partial class Random : CSLanguageNative, IDisposable, IRandom //名前区間があるので他Randomクラスとの混同を防げる
@@ -32,6 +33,9 @@ namespace SnowflakeNative
         public Random() => this._pointer = random_create((ulong)DateTime.UtcNow.Ticks);
         IntPtr IRandom._pointer => this._pointer;
         public void Dispose() => CSRandomDispose(ref this._pointer);
+        
+        /// <summary> Choice </summary>
+        public NdArray<T> Choice<T>(Random random, NdArray<T> values, int count, bool replace = true) where T : unmanaged => (NdArray<T>)CSChoice(random.Pointer, ((INdArray)values)._pointer, count, replace);
     }
 
     public abstract partial class CSLanguageNative : CLanguageNative

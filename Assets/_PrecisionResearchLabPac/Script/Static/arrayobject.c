@@ -117,30 +117,33 @@ void* ndarray_get(NdArray *arr, int64_t *indices) {
     return (void *)ptr;
 }
 /* NdArray* copy to NdArray */
-NdArray* ndarray_copy(NdArray *arr) {
-    NdArray *result = ndarray_convart(arr, arr->nd, arr->dimensions, arr->itemsize, arr->sdtype);
+NdArray* ndarray_copy(NdArray *src) {
+	// ※注意※　stringなども処理が通ってしまうため、C#側で防いでおくこと
+	NdArray *result = ndarray_create(src->nd, src->dimensions, src->itemsize, src->sdtype);
+	if (result == NULL) return NULL;
+	int64_t total = get_totalelements(src->nd, src->dimensions);
+	if (src->flags & NDARRAY_FLAG_C_CONTIGUOUS) {
+		memcpy(result->data, src->data, total * src->itemsize);
+	}
+	else {
+		for (int64_t f = 0; f < total; f++) {
+			int64_t indices[NDARRAY_MAX_DIMENSIONS];
+			assign_indices(src->nd, src->dimensions, f, indices);
+			char *src_address = get_address(src->data, indices, src->strides, src->nd);
+			memcpy(result->data + f * src->itemsize, src_address, src->itemsize);
+		}
+	}
 	return result;
 }
 /* void* convert NdArray */
 static NdArray*
 ndarray_convert(void *src, int nd, int64_t *dimensions, int itemsize, SDType sdtype)
 {
-	// ※注意※　stringなども処理が通ってしまうため、C#側で防いでおくこと
-    NdArray *result = ndarray_create(nd, dimensions, itemsize, sdtype);
-    if (result == NULL) return NULL;
-    int64_t total = get_totalelements(dimensions, nd);
-	if (src->flags & NDARRAY_FLAG_WRITEABLE) { //生データへの書き込みが可能であれば
-    	memcpy(result->data, src, total * itemsize);
-	}
-	else {
-		for (int64_t f = 0; f < total; f++) {
-    		int64_t indices[NDARRAY_MAX_DIMENSIONS];
-    		assign_indices(src->nd, src->dimensions, f, indices);
-    		char *src_address = get_address(src->data, indices, src->strides, src->nd);
-    		memcpy(result->data + f * src->itemsize, src_address, src->itemsize);
-		}
-	}
-    return result;
+	NdArray *result = ndarray_create(nd, dimensions, itemsize, sdtype);
+	if (result == NULL) return NULL;
+	int64_t total = get_totalelements(nd, dimensions);
+	memcpy(result->data, src, total * itemsize);
+	return result;
 }
 /* get prop */
 
