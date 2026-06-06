@@ -37,7 +37,7 @@ NdArray* np_random_poisson(Random *random, double lam, int64_t *dimensions, int 
 NdArray* np_random_exponential(Random *random, double scale, int64_t *dimensions, int nd);
 
 NdArray* // ①(最大値, 個数, + replace=false(値の重複なし))
-np_random_choice_argumentscalar(int max, int count, bool replace, SDType sdtype, Random *random)
+np_random_choice_argumentscalar(Random *random, int max, int count, bool replace, SDType sdtype)
 {
     NdArray* result = NULL;
     NdArray* values = NULL;
@@ -46,7 +46,7 @@ np_random_choice_argumentscalar(int max, int count, bool replace, SDType sdtype,
         SET_ERROR_MESSAGE("np_random_choice_scalar: values is NULL.");
         goto fail;
     }
-    result = np_random_choice_argumentndarray(values, count, replace, random);
+    result = np_random_choice_argumentndarray(random, values, count, replace);
     if (result == NULL) {
         SET_ERROR_MESSAGE("np_random_choice_scalar: result is NULL.");
         goto fail;
@@ -60,7 +60,7 @@ np_random_choice_argumentscalar(int max, int count, bool replace, SDType sdtype,
 }
 /* np_random_choice */
 NdArray* //引数 ②(配列, 個数) + replace=false(値の重複なし), count == 0 の場合は空の配列が返される
-np_random_choice_argumentndarray(NdArray *values, int count, bool replace, Random *random)
+np_random_choice_argumentndarray(Random *random, NdArray *values, int count, bool replace)
 {
     NdArray *result = NULL;
     int *indexes = NULL;
@@ -101,7 +101,6 @@ np_random_choice_argumentndarray(NdArray *values, int count, bool replace, Rando
         SET_ERROR_MESSAGE("np_random_choice_ndarray: count exceeds total elements when replace is false.");
         goto fail;
     }
-    //
     if (replace) { //値の重複を許容
         for (int i = 0; i < count; i++) {
             uint32_t rand = get_random(&random->param);

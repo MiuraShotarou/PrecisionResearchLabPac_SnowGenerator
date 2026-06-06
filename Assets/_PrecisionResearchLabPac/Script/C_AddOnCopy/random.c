@@ -14,7 +14,7 @@ typedef struct {
 #define PCG64_INCREMENT   1442695040888963407ULL
 #define PCG64_SHIFT_A     18u
 #define PCG64_SHIFT_B     27u
-#define PCG64_SHIFT_C     59uu
+#define PCG64_SHIFT_C     59u
 #define PCG64_ROTATION    31u
 // PCG64の乱数生成
 static uint32_t

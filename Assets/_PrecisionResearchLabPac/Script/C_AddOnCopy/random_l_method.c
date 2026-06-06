@@ -1,7 +1,7 @@
-// lrandom.c
+// random_l_method.c
 
 NdArray* // ①(最大値, 個数, + replace=false(値の重複なし))
-np_l_random_choice_argumentscalar(int64_t max, int64_t count, bool replace, SDType sdtype, Random *random)
+np_random_l_choice_argumentscalar(Random *random, int64_t max, int64_t count, bool replace, SDType sdtype)
 {
     NdArray* result = NULL;
     NdArray* values = NULL;
@@ -10,7 +10,7 @@ np_l_random_choice_argumentscalar(int64_t max, int64_t count, bool replace, SDTy
         SET_ERROR_MESSAGE("np_random_choice_scalar: values is NULL.");
         goto fail;
     }
-    result = np_l_random_choice_argumentndarray(values, count, replace, random);
+    result = np_random_l_choice_argumentndarray(random, values, count, replace);
     if (result == NULL) {
         SET_ERROR_MESSAGE("np_random_choice_scalar: result is NULL.");
         goto fail;
@@ -24,7 +24,7 @@ np_l_random_choice_argumentscalar(int64_t max, int64_t count, bool replace, SDTy
 }
 /* np_random_choice */
 NdArray* //引数 ②(配列, 個数) + replace=false(値の重複なし), count == 0 の場合は空の配列が返される
-np_l_random_choice_argumentndarray(NdArray *values, int64_t count, bool replace, Random *random)
+np_random_l_choice_argumentndarray(Random *random, NdArray *values, int64_t count, bool replace)
 {
     NdArray *result = NULL;
     int64_t *indexes = NULL;

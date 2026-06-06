@@ -1,4 +1,4 @@
-// Random.cs
+// Random_L.cs
 using System;
 using System.Runtime.InteropServices;
 /*
@@ -11,27 +11,38 @@ default_rng は numpy.random.Generator インスタンスを生成する関数�
 
 namespace SnowflakeNative
 {
-    public interface IRandom
-    {
-        internal IntPtr _pointer { get; }
-    }
-
-    public static class RandomExtensions
-    {
-        /// <summary> Choice </summary>
-        // np_random_choice_argumentndarray(NdArray *values, int count, bool replace, Random *random)
-        public static NdArray<T> Choice<T>(this Random random, NdArray<T> values, int count, bool replace = true) where T : unmanaged => values.Choice(random, count, replace);
-    }
+    // public static class RandomLExtensions
+    // {
+    //     /// <summary> Choice </summary>
+    //     // np_random_choice_argumentndarray(NdArray *values, int count, bool replace, Random *random)
+    //     public static NdArray<T> Choice<T>(this Random random, NdArray<T> values, int count, bool replace = true) where T : unmanaged => values.Choice(random, count, replace);
+    // }
     
     public partial class Random : CSLanguageNative, IDisposable, IRandom //名前区間があるので他Randomクラスとの混同を防げる
     {
-        private IntPtr _pointer; public IntPtr Pointer => _pointer;
-        /// <summary> Creates a random number generator with a specified seed for reproducible results. </summary>
-        public Random(ulong seed) => this._pointer = random_create(seed);
-        /// <summary> Creates a random number generator without a seed for non-reproducible results. </summary>
-        public Random() => this._pointer = random_create((ulong)DateTime.UtcNow.Ticks);
-        IntPtr IRandom._pointer => this._pointer;
-        public void Dispose() => CSRandomDispose(ref this._pointer);
+        public L l => new L(this);
+        public class L
+        {
+            private Random _outer;
+            public L(Random outer)
+            {
+                _outer = outer;
+            }
+            // np_random_choice_argumentscalar(int max, int count, bool replace, SDType sdtype, Random *random)
+            public NdArray<T> Choice<T>(long max, long count, bool replace = true) where T : unmanaged {
+                using (var random = new Random()) {
+                    return Packing(new NdArray<T>(), CSLChoice<T>(random.Pointer, max, count, replace));
+                }
+            }
+            public NdArray<T> Choice<T>(Random random, long max, long count, bool replace = true) where T : unmanaged => Packing(new NdArray<T>(), CSLChoice<T>(random.Pointer, max, count, replace));
+            // np_random_choice_argumentndarray(NdArray *values, long count, bool replace, Random *random)
+            public NdArray<T> Choice(long count, bool replace = true) { 
+                using (var random = new Random()) {
+                    return Packing(new NdArray<T>(), CSLChoice(random.Pointer, _outer._pointer, count, replace));
+                }
+            }
+            public NdArray<T> Choice(Random random, long count, bool replace = true) => Packing(new NdArray<T>(), CSLChoice(random.Pointer, _outer._pointer, count, replace));
+        }
     }
 
     public abstract partial class CSLanguageNative : CLanguageNative
