@@ -47,7 +47,7 @@ namespace SnowflakeNative
                     case SDType.UInt:
                     case SDType.Long:
                     case SDType.ULong:
-                        IntPtr maskPtr = np_ndarray_cast(mask._pointer, SDType.Int);
+                        IntPtr maskPtr = np_cast(mask._pointer, SDType.Int);
                         result = get_ndarray_advancedindexing(this._pointer, maskPtr);
                         ndarray_free(maskPtr);
                         break;
@@ -78,7 +78,7 @@ namespace SnowflakeNative
                     case SDType.UInt:
                     case SDType.Long:
                     case SDType.ULong:
-                        IntPtr maskPtr = np_ndarray_cast(mask._pointer, SDType.Int);
+                        IntPtr maskPtr = np_cast(mask._pointer, SDType.Int);
                         set_ndarray_advancedindexing(this._pointer, maskPtr, value._pointer);
                         ndarray_free(maskPtr);
                         break;
@@ -116,7 +116,7 @@ namespace SnowflakeNative
                     case SDType.Short:
                     case SDType.SByte:
                     case SDType.Byte:
-                        nd_mask = np_ndarray_cast(nd_mask, SDType.Int);
+                        nd_mask = np_cast(nd_mask, SDType.Int);
                         result = get_ndarray_advancedindexing(this._pointer, nd_mask);
                         break;
                     default:

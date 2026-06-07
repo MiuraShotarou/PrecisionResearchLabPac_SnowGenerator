@@ -190,7 +190,7 @@ namespace SnowflakeNative
         {
             SDType resType = GenericsToSDType<TResult>();
             // pointerをC言語側へ渡す
-            IntPtr result = np_ndarray_cast(pointer, resType); //SDTypeでどのメソッドを呼び出すのか決めている。+ Source元の配列のポインタから具体的な型のついたポインタに変換する必要がある。それを、C言語側で行う。C#側のNdArrayは用意しなくて良い。
+            IntPtr result = np_cast(pointer, resType); //SDTypeでどのメソッドを呼び出すのか決めている。+ Source元の配列のポインタから具体的な型のついたポインタに変換する必要がある。それを、C言語側で行う。C#側のNdArrayは用意しなくて良い。
             if (result == IntPtr.Zero) {
                 throw new InvalidOperationException(GetErrorMessage());
             }
@@ -513,7 +513,7 @@ namespace SnowflakeNative
         // ----------------------------------------------------------------
         /// <summary> Cast（astype） </summary>
         [DllImport(DLL_Name, CallingConvention = CallingConvention.Cdecl)]
-        protected static extern IntPtr np_ndarray_cast(IntPtr src, SDType restype);
+        protected static extern IntPtr np_cast(IntPtr src, SDType restype);
         
         // ----------------------------------------------------------------
         // プロパティ取得系

@@ -19,9 +19,11 @@ public class Memo : MonoBehaviour
         CSLanguageNative kk = new NdArray<int>(new long[]{3, 4});
         var Ihoge_p = Ihoge._pointer; //internalで阻止する予定
         
+        
 
         var zeros_f = NdArray<float>.Zeros(new long[] { 3, 4 });
         var fuga = zeros_f.Cast<int>();
+        hoge += fuga;
         zeros_f = new long[]{3, 4};
         
         NdArray<int> foo = NdArray<int>.Concatenate(new []{fuga} , 0);
@@ -43,10 +45,10 @@ public class Memo : MonoBehaviour
         NdArray<float> b = new NdArray<float>(new long[]{3, 4});
         NdArray<bool> conditions = new NdArray<bool>(new long[]{3, 4});
         
-        var result = NdArray.Where(conditions, a, b);
+        var result = NdArray<float>.Where(conditions, a, b);
 
-
-        var arange_i = NdArray.Arange(1,1,1,'d');
+        
+        // var arange_i = NdArray.Arange(1,1,1,'d');
     }
 
     //アプローチ① 結晶の移動のみECS, Mesh生成はUniTaskで実行する

@@ -7,9 +7,9 @@ method.c
 // staticの除外を行った
 // get_totalelementsの引数順を修正した
 // np_random_choiceをrandom.cに移した
+// np_ndarray_cast → np_cast にリネームした
 
-
- /* np zeros */
+/* np zeros */
 NdArray*
 np_zeros(int64_t *size, int size_nd, SDtype sdtype)//order='C'C言語, 'F'Fotran 内部でfullを呼んでも良い
 {
@@ -25,7 +25,7 @@ np_zeros(int64_t *size, int size_nd, SDtype sdtype)//order='C'C言語, 'F'Fotran
         ndarray_free(result);
         return NULL;
 }
- /* np ones */
+/* np ones */
 NdArray*
 np_ones(int64_t *size, int size_nd, SDType sdtype)//order='C'C言語, 'F'Fotran
 {
@@ -66,6 +66,62 @@ np_full(int64_t *size, int size_nd, double value, SDType sdtype, char order)
     fail:
         ndarray_free(result);
         return NULL;
+}
+
+NdArray* 
+np_cast (NdArray *src, SDType restype) {
+    NdArray *result = NULL;
+    /* check NULL */
+    if (src == NULL) {
+        SET_ERROR_MESSAGE("np_ndarray_cast: src is NULL.");
+        goto fail;
+    }
+    /* create array */
+    int nd = src->nd;
+    int64_t *dimensions = src->dimensions;
+    int itemsize = itemsize_cast_by_sdtype(restype);
+    if (itemsize == -1) {
+        SET_ERROR_MESSAGE("np_ndarray_cast: unsupported sdtype.");
+        goto fail;
+    }
+    result = ndarray_create(nd, dimensions, itemsize, restype);
+    if (result == NULL) {
+        return NULL;
+    }
+    int64_t total = get_totalelements(result->nd, result->dimensions);
+    if (src->flags & NDARRAY_FLAG_C_CONTIGUOUS) {
+        ArrayCast arraycast = srcarray_to_resarray_table[src->sdtype][restype];
+        if (arraycast == NULL) {
+            SET_ERROR_MESSAGE("np_ndarray_cast: arraycast is NULL.");
+            goto fail; //pass C#
+        }
+        char* src_ptr = src->data;
+        char* res_ptr = result->data;
+        arraycast(src_ptr, res_ptr, total);
+    }
+    else {
+        DoubleScalarCast cast = doublescalar_cast_by_sdtype[restype]; //
+        // src->sdtype が
+        // ① bool, int8_t, int16_t, int32_t, int64_t → int64_tにキャストして利用
+        // ② float, double → doubleにキャストして使用
+        // ③ uint8_t, uint16_t, uint_32_t, uint64_t → uint64_tにキャストして利用
+        
+        if (cast == NULL) {
+            SET_ERROR_MESSAGE("np_ndarray_cast: cast is NULL.");
+            goto fail;
+        }
+        for (int64_t f = 0; f < total; f++) {
+            int64_t indices[NDARRAY_MAX_DIMENSIONS];
+            assign_indices(src->nd, src->dimensions, f, indices);
+            char *address = get_address(src->data, indices, src->strides, src->nd);
+            double value = address_to_double(address, src->sdtype);
+            cast(result->data + f * result->itemsize, value);
+        }
+    }
+    return result;
+    fail:
+        ndarray_free(result);
+    return NULL;
 }
 
 // エラー条件を検出する必要
@@ -113,7 +169,7 @@ np_sum_return_scalar(NdArray *src)
         SET_ERROR_MESSAGE("np_sum_return_scalar: src is NULL.");
         goto fail;
     }
-    cast_array = np_ndarray_cast(src, src->sdtype, Double);
+    cast_array = np_ndarray_cast(src, Double);
     if (cast_array == NULL) {
         SET_ERROR_MESSAGE("np_sum_return_scalar: cast_array is NULL.");
         goto fail;
@@ -152,7 +208,7 @@ np_sum_return_array(NdArray *src, int32_t axis, bool keepdims)
         return result;
     }
     /* create cast_array */
-    cast_array = np_ndarray_cast(src, src->sdtype, Double);
+    cast_array = np_ndarray_cast(src, Double);
     if (cast_array == NULL) {
         SET_ERROR_MESSAGE("np_sum_return_array: cast_array is NULL.");
         goto fail;

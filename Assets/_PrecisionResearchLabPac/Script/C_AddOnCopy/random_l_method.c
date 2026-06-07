@@ -50,11 +50,6 @@ np_random_l_choice_argumentndarray(Random *random, NdArray *values, int64_t coun
         }
         return result;
     }
-    DoubleScalarCast cast = doublescalar_cast_by_sdtype[values->sdtype];
-    if (cast == NULL) {
-        SET_ERROR_MESSAGE("np_random_choice_ndarray: cast is NULL.");
-        goto fail;
-    }
     result = ndarray_create(NDARRAY_MIN_ND, dimensions, values->itemsize, values->sdtype);
     if (result == NULL) {
         SET_ERROR_MESSAGE("np_random_choice_ndarray: result is NULL.");
@@ -70,8 +65,7 @@ np_random_l_choice_argumentndarray(Random *random, NdArray *values, int64_t coun
             uint64_t rand = ((uint64_t)get_random(&random->param) << 32) | get_random(&random->param);
             int64_t f = (int64_t)(rand % (uint64_t)total); //次元index
             char* address = values->data + f * values->itemsize;
-            double value = address_to_double(address, values->sdtype);
-            cast(result->data + i * result->itemsize, value);
+            memcpy(result->data + i * result->itemsize, address, values->itemsize);
         }
     }
     else {
@@ -95,8 +89,7 @@ np_random_l_choice_argumentndarray(Random *random, NdArray *values, int64_t coun
             // indexes[i] を使って values から値を取り出す
             int64_t f = indexes[i];
             char* address = values->data + f * values->itemsize;
-            double value = address_to_double(address, values->sdtype);
-            cast(result->data + i * result->itemsize, value);
+            memcpy(result->data + i * result->itemsize, address, values->itemsize);
         }
     }
     free(indexes);

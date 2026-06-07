@@ -18,6 +18,10 @@ typedef enum SDType {/* C言語 */
     Double,         /* double */
 } SDType;
 
+typedef enum SafeCastType {
+    
+}
+
 typedef enum PadModeType {
     Constant,    // 定数値でパディング（デフォルト：0）
     Edge,        // 端の値でパディング

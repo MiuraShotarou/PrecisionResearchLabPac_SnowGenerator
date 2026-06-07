@@ -1,3 +1,5 @@
+// cast.h
+
 #ifndef ARRAY_CAST_H
 #define ARRAY_CAST_H
 
@@ -16,8 +18,56 @@
 //	①nd, ②dims, ③itemsize
 //}
 
-// SDType 指定で下記の(配列同士キャスト関数)を呼び出すことができるメソッド → 破壊的操作で変更する形に → 内部でsrcarray_to_resarray_tableを呼び出す
-NdArray *np_ndarray_cast (NdArray *src, SDType restype); //NdArray.dataに反映させれば良い → np_cast にリネーム
+/* SDType指定で、キャスト用メソッドを呼び出す配列群 */
+
+// ulongスカラーのキャスト用メソッド。型落ち範囲内の型まで実装する → 現状は未実装で良い
+typedef void (*UInt64ScalarCast)(char *dest, uint64_t value); // 符号付き整数の中で最大の型
+extern UInt64ScalarCast ulongcalar_cast_by_sdtype[];
+// SDTypeごとに long value を適性な型にキャストするメソッドの宣言
+void uint64_to_bool   (char *dest, uint64_t value);
+void uint64_to_sbyte  (char *dest, uint64_t value);
+void uint64_to_byte   (char *dest, uint64_t value);
+void uint64_to_short  (char *dest, uint64_t value);
+void uint64_to_ushort (char *dest, uint64_t value);
+void uint64_to_int    (char *dest, uint64_t value);
+void uint64_to_uint   (char *dest, uint64_t value);
+void uint64_to_long   (char *dest, uint64_t value);
+void uint64_to_ulong  (char *dest, uint64_t value);
+void uint64_to_float  (char *dest, uint64_t value);
+void uint64_to_double (char *dest, uint64_t value);
+
+// longスカラーのキャスト用メソッド。型落ち範囲内の型まで実装する
+typedef void (*Int64ScalarCast)(char *dest, int64_t value); // 符号付き整数の中で最大の型
+extern Int64ScalarCast int64calar_cast_by_sdtype[];
+// SDTypeごとに long value を適性な型にキャストするメソッドの宣言
+void int64_to_bool   (char *dest, int64_t value);
+void int64_to_sbyte  (char *dest, int64_t value);
+void int64_to_byte   (char *dest, int64_t value);
+void int64_to_short  (char *dest, int64_t value);
+void int64_to_ushort (char *dest, int64_t value);
+void int64_to_int    (char *dest, int64_t value);
+void int64_to_uint   (char *dest, int64_t value);
+void int64_to_long   (char *dest, int64_t value);
+void int64_to_ulong  (char *dest, int64_t value);
+void int64_to_float  (char *dest, int64_t value);
+void int64_to_double (char *dest, int64_t value);
+
+// doubleスカラーのキャスト用メソッド。型落ち範囲内の型まで実装する
+typedef void (*DoubleScalarCast)(char *dest, double value); // 浮動小数点の中で最大の型
+extern DoubleScalarCast doublescalar_cast_by_sdtype[];
+// SDTypeごとに double value を適性な型にキャストするメソッドの宣言
+void double_to_bool   (char *dest, double value);
+void double_to_sbyte  (char *dest, double value);
+void double_to_byte   (char *dest, double value);
+void double_to_short  (char *dest, double value);
+void double_to_ushort (char *dest, double value);
+void double_to_int    (char *dest, double value);
+void double_to_uint   (char *dest, double value);
+void double_to_long   (char *dest, double value);
+void double_to_ulong  (char *dest, double value);
+void double_to_float  (char *dest, double value);
+void double_to_double (char *dest, double value);
+
 /* typedefinition */
 typedef void (*ArrayCast)(void *src, void *res, size_t n);
 // ----------------------------------------------------------------
