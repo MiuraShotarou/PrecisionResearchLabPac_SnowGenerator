@@ -21,7 +21,6 @@ using UnityEditor.Build.Reporting;
 // 使用される基本プリミティブ型はint, floatだが、大型開発用にdouble, longを基本に利用したメソッド群クラスを提供する
 // NdArray.IsReferenceの場合、書き込み操作を禁止する
 
-/// <summary> C言語側へ渡すSDTypeを削除すること </summary>
 /// <summary> long, doubleなどのプリミティブ型操作見直し </summary>
 /// <summary> NdArrayViewクラスを実装する </summary>
 /// <summary> 実装しきれていないユーザーメソッドを実装する </summary>
@@ -115,19 +114,6 @@ namespace SnowflakeNative
         public NdArray<T> Pad(int pad_width, PadModeType mode, double value) => Packing(new NdArray<T>(), CSPad(this._pointer, pad_width, mode, value));
         /// <summary> BroadcastTo </summary>
         public NdArray<T> BroadcastTo(long[] size) => Packing(new NdArray<T>(), CSBroadcastTo(this._pointer, size));
-        /// <summary> RandomChoice </summary>
-        // np_random_choice_argumentscalar(int max, int count, bool replace, SDType sdtype, Random *random)
-        
-        // 引数にクラス参照がない
-        public NdArray<T> Choice(int max, int count, bool replace = true)
-        {
-            using (var random = new Random())
-            {
-                return Packing(new NdArray<T>(), CSChoice<T>(random.Pointer, max, count, replace));
-            }
-        }
-        // 引数にRandomとジェネリクス参照あり
-        public NdArray<T> Choice(Random random, int max, int count, bool replace = true) => Packing(new NdArray<T>(), CSChoice<T>(random.Pointer, max, count, replace));
         
         /// <summary> no instance method compulsion T </summary> //NdArray<T>.(メソッド名)でメソッド内のTを強制指定
         /// <summary> Zeros </summary>
@@ -152,28 +138,9 @@ namespace SnowflakeNative
         /// <summary> Stack </summary>
         public static NdArray<T> Stack(NdArray<T>[] srcArray, uint axis = 0) => Packing(new NdArray<T>(), CSStack<T>(srcArray.Select(arr => arr._pointer).ToArray(), axis));
         public static NdArray<T> VStack(NdArray<T>[] srcArray) => Packing(new NdArray<T>(), CSVStack(srcArray.Select(arr => arr._pointer).ToArray()));
-        /// <summary> Choice </summary>
-        // np_random_choice_argumentndarray(NdArray *values, int count, bool replace, Random *random)
-        
-        // 引数にNdArray<T>参照あり
-        public NdArray<T> Choice(int count, bool replace = true)
-        {
-            using (var random = new Random())
-            {
-                return Packing(new NdArray<T>(), CSChoice(random.Pointer, this._pointer, count, replace));
-            }
-        }
-        // 引数にNdArray<T>とRandom参照あり
-        public NdArray<T> Choice(Random random, int count, bool replace = true) => Packing(new NdArray<T>(), CSChoice(random.Pointer, this._pointer, count, replace));
-
+        public static NdArray<T> HStack(NdArray<T>[] srcArray) => Packing(new NdArray<T>(), CSHStack(srcArray.Select(arr => arr._pointer).ToArray()));
         /// <summary> Concatenate </summary>
-        public static NdArray<T> Concatenate(IntPtr[] srcArray, int axis = 0) => Packing(new NdArray<T>(), CSConcatenate<T>(srcArray, axis));
-    }
-
-    public static class NdArray
-    {
-        public static NdArray<T> Where<T>(NdArray<bool> conditions, NdArray<T> a, NdArray<T> b) where T : unmanaged => NdArray<T>.Where(conditions, a, b);
-        public static NdArray<int> Arange(int start, int end, int step, char order) => NdArray<int>.Arange(start, end, step, order);
+        public static NdArray<T> Concatenate(NdArray<T>[] srcArray, int axis = 0) => Packing(new NdArray<T>(), CSConcatenate(srcArray.Select(arr => arr._pointer).ToArray(), axis));
     }
 
     /// <summary> Have CSharp Relay Method </summary>
@@ -235,32 +202,30 @@ namespace SnowflakeNative
             return np_pad(pointer, pad_wdith, mode, value);
         }
 
-        protected static IntPtr CSConcatenate<T>(IntPtr[] pointerArray, int axis = 0) where T : unmanaged
+        protected static IntPtr CSConcatenate(IntPtr[] arrays, int axis = 0)
         {
-            if (pointerArray.Any(ptr => ptr == IntPtr.Zero)) {
+            if (arrays.Any(ptr => ptr == IntPtr.Zero)) {
                 throw new ArgumentException(GetErrorMessage());
             }
-            int array_count = pointerArray.Length;
-            SDType resType = GenericsToSDType<T>();
-            return np_concatenate(pointerArray, array_count, axis, resType);
+            int array_count = arrays.Length;
+            return np_concatenate(arrays, array_count, axis);
         }
         /// <summary> 配列Aに新しい次元として配列Bを追加し、新規配列として返す </summary>
-        protected static IntPtr CSStack<T>(IntPtr[] pointerArray, uint axis = 0) where T : unmanaged
+        protected static IntPtr CSStack<T>(IntPtr[] arrays, uint axis = 0) where T : unmanaged
         {
-            SDType resType = GenericsToSDType<T>();
-            int pointerCount = pointerArray.Length;
-            return np_stack(pointerArray, pointerCount, axis, resType); //形状チェックはC言語側で行う
+            int array_count = arrays.Length;
+            return np_stack(arrays, array_count, axis); //形状チェックはC言語側で行う
         }
         /// <summary> 配列を縦方向に順番に積み重ねる </summary>
-        protected static IntPtr CSVStack(IntPtr[] pointerArray)
+        protected static IntPtr CSVStack(IntPtr[] arrays)
         {
-            int array_count = pointerArray.Length;
-            return np_vstack(pointerArray, array_count);
+            int array_count = arrays.Length;
+            return np_vstack(arrays, array_count);
         }
-        protected static IntPtr CSHstack(IntPtr[] pointerArray)
+        protected static IntPtr CSHStack(IntPtr[] arrays)
         {
-            int array_count = pointerArray.Length;
-            return np_hstack(pointerArray, array_count);
+            int array_count = arrays.Length;
+            return np_hstack(arrays, array_count);
         }
 
         /// <summary> np_broadcast_to </summary>
@@ -303,7 +268,7 @@ namespace SnowflakeNative
             return result;
         }
         /// <summary> Where </summary>
-        protected static IntPtr CSWhere(IntPtr conditions, IntPtr trueValue, IntPtr falseValue) //return x or y
+        protected static IntPtr CSWhere(IntPtr conditions, IntPtr trueValue, IntPtr falseValue) //return a or b
         {
             // conditions.sdtype == bool
             IntPtr result = np_where(conditions, trueValue, falseValue);
@@ -468,7 +433,7 @@ namespace SnowflakeNative
         protected static extern IntPtr np_full(long[] size, int size_nd, double value, SDType sdtype);
         /// <summary> Empty </summary>
         [DllImport(DLL_Name, CallingConvention = CallingConvention.Cdecl)]
-        protected static extern IntPtr np_empty(long[] size, int size_nd, SDType sdtype);
+        protected static extern IntPtr np_empty(long[] size, int size_nd, SDType sdtype); //不要
         /// <summary> Arange </summary>
         [DllImport(DLL_Name, CallingConvention = CallingConvention.Cdecl)]
         protected static extern IntPtr np_arange(int start, int end, int step, SDType sdType, char order);
@@ -502,10 +467,10 @@ namespace SnowflakeNative
         protected static extern IntPtr np_pad(IntPtr src, int pad_width, PadModeType mode, double value);
         /// <summary> Concatenate </summary>
         [DllImport(DLL_Name, CallingConvention = CallingConvention.Cdecl)]
-        protected static extern IntPtr np_concatenate(IntPtr[] arrays, int array_count, int axis, SDType sdtype);
+        protected static extern IntPtr np_concatenate(IntPtr[] arrays, int array_count, int axis);
         /// <summary> Stack </summary>
         [DllImport(DLL_Name, CallingConvention = CallingConvention.Cdecl)]
-        protected static extern IntPtr np_stack(IntPtr[] arrays, int array_count, uint axis, SDType sdtype);
+        protected static extern IntPtr np_stack(IntPtr[] arrays, int array_count, uint axis);
         /// <summary> VStack </summary>
         [DllImport(DLL_Name, CallingConvention = CallingConvention.Cdecl)]
         protected static extern IntPtr np_vstack(IntPtr[] arrays, int array_count);
@@ -542,7 +507,7 @@ namespace SnowflakeNative
         // Where
         // ----------------------------------------------------------------
         [DllImport(DLL_Name, CallingConvention = CallingConvention.Cdecl)]
-        protected static extern IntPtr np_where(IntPtr condition, IntPtr x, IntPtr y);
+        protected static extern IntPtr np_where(IntPtr condition, IntPtr a, IntPtr b);
         // ----------------------------------------------------------------
         // 型変換系
         // ----------------------------------------------------------------
@@ -562,7 +527,7 @@ namespace SnowflakeNative
         
         /// <summary> size </summary>
 
-        /// <summary> dtype </summary>
+        /// <summary> sdtype </summary>
         /// <summary> itemsize </summary>
         /// <summary> nbytes 総バイト数 </summary>
         /// <summary> strides 各次元のストライド </summary>

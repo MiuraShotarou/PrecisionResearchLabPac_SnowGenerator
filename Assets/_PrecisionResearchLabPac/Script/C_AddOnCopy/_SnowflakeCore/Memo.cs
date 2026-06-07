@@ -18,11 +18,13 @@ public class Memo : MonoBehaviour
         INdArray Ihoge = new NdArray<int>(new long[]{3, 4});
         CSLanguageNative kk = new NdArray<int>(new long[]{3, 4});
         var Ihoge_p = Ihoge._pointer; //internalで阻止する予定
+        
 
         var zeros_f = NdArray<float>.Zeros(new long[] { 3, 4 });
         var fuga = zeros_f.Cast<int>();
         zeros_f = new long[]{3, 4};
         
+        NdArray<int> foo = NdArray<int>.Concatenate(new []{fuga} , 0);
         var zeros_i = NdArray<int>.Zeros(new long[] { 3, 4 });
         zeros_i = zeros_i.Sum();
         var zeros_scalar_f = zeros_i.Sum();
@@ -30,7 +32,7 @@ public class Memo : MonoBehaviour
         // list = new List<int>();
         hoge.Ravel();
         hoge = hoge.Copy();
-        new SnowflakeNative.Random(1).Choice(hoge, 1, true);
+        NdArray<int> a = new SnowflakeNative.Random().Choice<int>(5, 1, true);
         
         
     }

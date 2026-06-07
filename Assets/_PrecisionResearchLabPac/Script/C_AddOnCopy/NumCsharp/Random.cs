@@ -18,24 +18,28 @@ namespace SnowflakeNative
 
     public static class RandomExtensions
     {
-        /// <summary> Choice </summary>
-        // np_random_choice_argumentndarray(NdArray *values, int count, bool replace, Random *random)
-        // public static NdArray<T> Choice<T>(this Random random, NdArray<T> values, int count, bool replace = true) where T : unmanaged => values.Choice(random, count, replace);
-        public static NdArray<T> Choice<T>(this Random random, NdArray<T> values, int count, bool replace = true) where T : unmanaged => random.Choice(random, count, replace);
     }
     
     public partial class Random : CSLanguageNative, IDisposable, IRandom //名前区間があるので他Randomクラスとの混同を防げる
     {
-        private IntPtr _pointer; public IntPtr Pointer => _pointer;
+        private IntPtr _pointer;
         /// <summary> Creates a random number generator with a specified seed for reproducible results. </summary>
-        public Random(ulong seed) => this._pointer = random_create(seed);
+        public Random(ulong seed)
+        {
+            this._pointer = random_create(seed);
+        }
         /// <summary> Creates a random number generator without a seed for non-reproducible results. </summary>
-        public Random() => this._pointer = random_create((ulong)DateTime.UtcNow.Ticks);
+        public Random()
+        {
+            this._pointer = random_create((ulong)DateTime.UtcNow.Ticks);
+        }
         IntPtr IRandom._pointer => this._pointer;
         public void Dispose() => CSRandomDispose(ref this._pointer);
         
         /// <summary> Choice </summary>
-        public NdArray<T> Choice<T>(Random random, NdArray<T> values, int count, bool replace = true) where T : unmanaged => (NdArray<T>)CSChoice(random.Pointer, ((INdArray)values)._pointer, count, replace);
+        public NdArray<T> Choice<T>(int max, int count, bool replace = true) where T : unmanaged => (NdArray<T>)CSChoice<T>(this._pointer, max, count, replace);
+        // 引数にNdArray<T>参照ありパターン
+        public NdArray<T> Choice<T>(NdArray<T> values, int count, bool replace = true) where T : unmanaged => (NdArray<T>)CSChoice(this._pointer, ((INdArray)values)._pointer, count, replace);
     }
 
     public abstract partial class CSLanguageNative : CLanguageNative
