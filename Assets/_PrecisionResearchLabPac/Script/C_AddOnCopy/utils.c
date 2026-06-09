@@ -5,8 +5,6 @@
 #include <assert.h>
 #include "utils.h"
 
-
-
 int64_t
 get_totalelements(int size_nd, int64_t *size)
 {

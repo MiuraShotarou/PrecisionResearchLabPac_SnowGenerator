@@ -19,8 +19,6 @@ public class Memo : MonoBehaviour
         CSLanguageNative kk = new NdArray<int>(new long[]{3, 4});
         var Ihoge_p = Ihoge._pointer; //internalで阻止する予定
         
-        
-
         var zeros_f = NdArray<float>.Zeros(new long[] { 3, 4 });
         var fuga = zeros_f.Cast<int>();
         hoge += fuga;

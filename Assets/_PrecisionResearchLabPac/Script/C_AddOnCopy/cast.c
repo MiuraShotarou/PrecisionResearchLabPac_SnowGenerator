@@ -6,7 +6,7 @@
 
 #include "cast.h"
 
-UInt64ScalarCast uint64scalar_cast_by_sdtype[] = {
+ULongScalarCast ulongscalar_cast_by_sdtype[] = {
     uint64_to_bool,
     uint64_to_sbyte,
     uint64_to_byte,
@@ -31,7 +31,7 @@ void uint64_to_ulong  (char *dest, uint64_t value) { uint64_t v =           valu
 void uint64_to_float  (char *dest, uint64_t value) { float    v = (float)   value; memcpy(dest, &v, sizeof(float));    }
 void uint64_to_double (char *dest, uint64_t value) { double   v = (double)  value; memcpy(dest, &v, sizeof(double));   }
 
-Int64ScalarCast int64scalar_cast_by_sdtype[] = {
+LongScalarCast longscalar_cast_by_sdtype[] = {
     int64_to_bool,
     int64_to_sbyte,
     int64_to_byte,
@@ -82,7 +82,7 @@ void double_to_float  (char *dest, double value) { float    v = (float)   value;
 void double_to_double (char *dest, double value) { double   v =           value; memcpy(dest, &v, sizeof(double));   }
 
 uint64_t
-address_to_uint64(char *address, SDType sdtype)
+address_to_ulong(char *address, SDType sdtype)
 {
     switch (sdtype) {
     case Bool:   { bool     v; memcpy(&v, address, sizeof(bool));     return (uint64_t)v; }
@@ -100,7 +100,7 @@ address_to_uint64(char *address, SDType sdtype)
     }
 }
 int64_t
-address_to_int64(char *address, SDType sdtype)
+address_to_long(char *address, SDType sdtype)
 {
     switch (sdtype) {
     case Bool:   { bool     v; memcpy(&v, address, sizeof(bool));     return (int64_t)v; }

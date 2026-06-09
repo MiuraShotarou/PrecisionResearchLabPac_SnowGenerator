@@ -6,6 +6,45 @@
 memset(初期化元, 0, sizeof(初期化元));
 //memset(src_indices, 0, sizeof(src_indices));
 
+// スカラー値のキャスト処理構文
+SafeCastType *safe = get_safecasttype(src->sdtype);
+if (safe == NULL) {
+    SET_ERROR_MESSAGE("np_cast: safe is NULL.");
+    goto fail;
+}
+switch (safe->sdtype) {
+    case Long: {
+        LongScalarCast cast = longscalar_cast_by_sdtype[restype];
+        for (int64_t f = 0; f < total; f++) {
+            int64_t indices[NDARRAY_MAX_DIMENSIONS];
+            assign_indices(src->nd, src->dimensions, f, indices);
+            char *address = get_address(src->data, indices, src->strides, src->nd);
+            int64_t value = address_to_long(address, src->sdtype);
+            cast(result->data + f * result->itemsize, value);
+        } break;
+    }
+    case ULong: {
+        ULongScalarCast cast = ulongscalar_cast_by_sdtype[restype];
+        for (int64_t f = 0; f < total; f++) {
+            int64_t indices[NDARRAY_MAX_DIMENSIONS];
+            assign_indices(src->nd, src->dimensions, f, indices);
+            char *address = get_address(src->data, indices, src->strides, src->nd);
+            uint64_t value = address_to_ulong(address, src->sdtype);
+            cast(result->data + f * result->itemsize, value);
+        } break;
+    }
+    case Double: {
+        DoubleScalarCast cast = doublescalar_cast_by_sdtype[restype];
+        for (int64_t f = 0; f < total; f++) {
+            int64_t indices[NDARRAY_MAX_DIMENSIONS];
+            assign_indices(src->nd, src->dimensions, f, indices);
+            char *address = get_address(src->data, indices, src->strides, src->nd);
+            double value = address_to_double(address, src->sdtype);
+            cast(result->data + f * result->itemsize, value);
+        } break;
+    }
+}
+
 // C# long[]で行列指定した配列の総要素数計算 → {
     int64_t total = 1;
     for (int i = 0; i < size_nd; i++) {

@@ -417,11 +417,14 @@ np_resize(NdArray *src, int64_t *size, int size_nd)
         return np_reshape(src, size, size_nd);
     }
     result = ndarray_create(size_nd, size, src->itemsize, src->sdtype);
-    int64_t loop = res_total / src_total; //64 / 66 == 0, 64 / 64 == 1, 64 / 32 == 2
-    int i = 0;
-    do {
-        memcpy(result->data + (i++ * src_total * src->itemsize), src->data, src_total * src->itemsize);
-    } while (--loop > 0);
+    int64_t loop = res_total / src_total; //64 / 66 == 0, 64 / 64 == 1, 64 / 32 == 2, 66 / 64 = 1;
+    for (int64_t l = 0; l < loop; l++) {
+        memcpy(result->data + (l * src_total * src->itemsize), src->data, src_total * src->itemsize);
+    }
+    int64_t remainder = res_total % src_total; // 66 % 64 = 2
+    for (int64_t r = 0; r < remainder; r++) {
+        memcpy(result->data + (loop * src_total + r) * src->itemsize, src->data + (r * src->itemsize), src->itemsize);
+    }
     return result;
     fail:
 		ndarray_free(result);
@@ -454,7 +457,7 @@ np_squeeze(NdArray *src)
         return NULL;
 }
     
-NdArray* //要素の入れ替え、反転。NumpyではNOT_OWN_DATAを返す
+NdArray* //アクセス順序を変更する
 np_transpose(NdArray *src, int64_t *size) //size.default == (0, 1, 2, 3……)
 {
 	NdArray *result = NULL;

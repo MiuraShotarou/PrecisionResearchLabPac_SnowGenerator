@@ -19,8 +19,6 @@ namespace SnowflakeNative
         protected static extern IntPtr get_ndarray_advancedindexing(IntPtr src, IntPtr mask);
         [DllImport(DLL_Name, CallingConvention = CallingConvention.Cdecl)]
         protected static extern void set_ndarray_advancedindexing(IntPtr src, IntPtr mask, IntPtr value);
-        [DllImport(DLL_Name, CallingConvention = CallingConvention.Cdecl)]
-        protected static extern IntPtr ndarray_convert(IntPtr src, int nd, long[] dimensions, int itemsize, SDType sdtype);
     }
     // 設計：C#提供の配列はNdArrayに変換し、その後C言語側で処理をする
     public partial class NdArray<T> : CSLanguageNative, INdArray where T : unmanaged

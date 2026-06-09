@@ -106,6 +106,15 @@ bool checkndarray_flag_c_contiguous(NdArray *arr)
     return true;
 }
 
+bool get_ndarray_flag_owndata(NdArray *arr)
+{
+	if (arr == NULL) {
+		SET_ERROR_MESSAGE("check_ndarray_flag_owndata: arr is NULL.");
+		return false;
+	}
+	return (arr->flags & NDARRAY_FLAG_OWNDATA) != 0;
+}
+
 // ----------------------------------------------------------------
 // 要素アクセス（任意次元のインデックスからポインタを返す）
 // ----------------------------------------------------------------
@@ -136,7 +145,7 @@ NdArray* ndarray_copy(NdArray *src) {
 	return result;
 }
 /* void* convert NdArray */
-static NdArray*
+NdArray*
 ndarray_convert(void *src, int nd, int64_t *dimensions, int itemsize, SDType sdtype)
 {
 	NdArray *result = ndarray_create(nd, dimensions, itemsize, sdtype);
@@ -170,8 +179,51 @@ ndarray_shape(NdArray *src)
     return shape;
 }
 
+NdArray*
+ndarray_indices(NdArray *src)
+{
+	NdArray *result = NULL;
+	if (shape == NULL || shape_nd < 1) {
+		SET_ERROR_MESSAGE("np_indices: shape is NULL or shape_nd is invalid.");
+		goto fail;
+	}
+	// result の形状: (shape_nd, shape[0], shape[1], ..., shape[shape_nd-1])
+	int nd = src->nd + 1;
+	int64_t dimensions[NDARRAY_MAX_DIMENSIONS];
+	dimensions[0] = src->nd;
+	for (int i = 0; i < src->nd; i++) {
+		dimensions[i + 1] = src->dimensions[i];
+	}
+	int itemsize = src->itemsize;
+	
+	result = ndarray_create(nd, dimensions, itemsize, sdtype);
+	if (result == NULL) {
+		SET_ERROR_MESSAGE("np_indices: ndarray_create failed.");
+		goto fail;
+	}
+	int64_t total = get_totalelements(shape_nd, shape);
+	LongScalarCast cast = longscalar_cast_by_sdtype[sdtype];
+	if (cast == NULL) {
+		SET_ERROR_MESSAGE("np_indices: cast is NULL.");
+		goto fail;
+	}
+	// 各次元のインデックスを格納
+	for (int d = 0; d < shape_nd; d++) {
+		for (int64_t f = 0; f < total; f++) {
+			int64_t indices[NDARRAY_MAX_DIMENSIONS];
+			assign_indices(shape_nd, shape, f, indices);
+			int64_t offset = d * total + f;
+			cast(result->data + offset * itemsize, indices[d]);
+		}
+	}
+	return result;
+	fail:
+		ndarray_free(result);
+	return NULL;
+}
+
 /* convenience */
-static bool
+bool
 check_scalar(NdArray *arr)
 {
     if (arr == NULL || arr->nd != 1 || arr->dimensions[0] != 1) {

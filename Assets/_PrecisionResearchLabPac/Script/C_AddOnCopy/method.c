@@ -11,7 +11,7 @@ method.c
 
 /* np zeros */
 NdArray*
-np_zeros(int64_t *size, int size_nd, SDtype sdtype)//order='C'C言語, 'F'Fotran 内部でfullを呼んでも良い
+np_zeros(int64_t *size, int size_nd, SDType sdtype)//order='C'C言語, 'F'Fotran 内部でfullを呼んでも良い
 {
     NdArray *result = NULL;
     double value = 0.0;
@@ -44,7 +44,7 @@ np_ones(int64_t *size, int size_nd, SDType sdtype)//order='C'C言語, 'F'Fotran
 
 /* np full */
 NdArray*
-np_full(int64_t *size, int size_nd, double value, SDType sdtype, char order)
+np_full(int64_t *size, int size_nd, void *value, SDType sdtype, char order) // lも実装する
 {
     NdArray *result = NULL;
     int itemsize = itemsize_cast_by_sdtype(sdtype);
@@ -53,14 +53,37 @@ np_full(int64_t *size, int size_nd, double value, SDType sdtype, char order)
         SET_ERROR_MESSAGE("np_full: Cannot create a new result.");
         goto fail;
     }
-    int64_t total = get_totalelements(result->nd, result->dimensions);
-    DScalarCast cast = dscalar_cast_by_sdtype[sdtype];
-    if (cast == NULL) {
-        SET_ERROR_MESSAGE("np_full: unsupported sdtype for cast.");
+    SafeCastType *safe = get_safecasttype(sdtype);
+    if (safe == NULL) {
+        SET_ERROR_MESSAGE("np_full: safe is NULL.");
         goto fail;
     }
-    for (int64_t i = 0; i < total; i++) {
-        cast(result->data + i * itemsize, value);
+    int64_t total = get_totalelements(result->nd, result->dimensions);
+    switch (safe->sdtype) {
+        case Long: {
+            LongScalarCast cast = longscalar_cast_by_sdtype[result->sdtype];
+            int64_t v;
+            memcpy(&v, value, sizeof(int64_t));
+            for (int64_t f = 0; f < total; f++) {
+                cast(result->data + f * itemsize, v);
+            } break;
+        }
+        case ULong: {
+            ULongScalarCast cast = ulongscalar_cast_by_sdtype[result->sdtype];
+            uint64_t v;
+            memcpy(&v, value, sizeof(uint64_t));
+            for (int64_t f = 0; f < total; f++) {
+                cast(result->data + f * itemsize, v);
+            } break;
+        }
+        case Double: {
+            DoubleScalarCast cast = doublescalar_cast_by_sdtype[result->sdtype];
+            double v;
+            memcpy(&v, value, sizeof(double));
+            for (int64_t f = 0; f < total; f++) {
+                cast(result->data + f * itemsize, v);
+            } break;
+        }
     }
     return result;
     fail:
@@ -69,7 +92,7 @@ np_full(int64_t *size, int size_nd, double value, SDType sdtype, char order)
 }
 
 NdArray* 
-np_cast (NdArray *src, SDType restype) {
+np_cast(NdArray *src, SDType restype) {
     NdArray *result = NULL;
     /* check NULL */
     if (src == NULL) {
@@ -86,7 +109,7 @@ np_cast (NdArray *src, SDType restype) {
     }
     result = ndarray_create(nd, dimensions, itemsize, restype);
     if (result == NULL) {
-        return NULL;
+        goto fail;
     }
     int64_t total = get_totalelements(result->nd, result->dimensions);
     if (src->flags & NDARRAY_FLAG_C_CONTIGUOUS) {
@@ -100,22 +123,46 @@ np_cast (NdArray *src, SDType restype) {
         arraycast(src_ptr, res_ptr, total);
     }
     else {
-        DoubleScalarCast cast = doublescalar_cast_by_sdtype[restype]; //
         // src->sdtype が
         // ① bool, int8_t, int16_t, int32_t, int64_t → int64_tにキャストして利用
         // ② float, double → doubleにキャストして使用
         // ③ uint8_t, uint16_t, uint_32_t, uint64_t → uint64_tにキャストして利用
-        
-        if (cast == NULL) {
-            SET_ERROR_MESSAGE("np_ndarray_cast: cast is NULL.");
+        SafeCastType *safe = get_safecasttype(src->sdtype);
+        if (safe == NULL) {
+            SET_ERROR_MESSAGE("np_cast: safe is NULL.");
             goto fail;
         }
-        for (int64_t f = 0; f < total; f++) {
-            int64_t indices[NDARRAY_MAX_DIMENSIONS];
-            assign_indices(src->nd, src->dimensions, f, indices);
-            char *address = get_address(src->data, indices, src->strides, src->nd);
-            double value = address_to_double(address, src->sdtype);
-            cast(result->data + f * result->itemsize, value);
+        switch (safe->sdtype) {
+            case Long: {
+                LongScalarCast cast = longscalar_cast_by_sdtype[restype];
+                for (int64_t f = 0; f < total; f++) {
+                    int64_t indices[NDARRAY_MAX_DIMENSIONS];
+                    assign_indices(src->nd, src->dimensions, f, indices);
+                    char *address = get_address(src->data, indices, src->strides, src->nd);
+                    int64_t value = address_to_long(address, src->sdtype);
+                    cast(result->data + f * result->itemsize, value);
+                } break;
+            }
+            case ULong: {
+                ULongScalarCast cast = ulongscalar_cast_by_sdtype[restype];
+                for (int64_t f = 0; f < total; f++) {
+                    int64_t indices[NDARRAY_MAX_DIMENSIONS];
+                    assign_indices(src->nd, src->dimensions, f, indices);
+                    char *address = get_address(src->data, indices, src->strides, src->nd);
+                    uint64_t value = address_to_ulong(address, src->sdtype);
+                    cast(result->data + f * result->itemsize, value);
+                } break;
+            }
+            case Double: {
+                DoubleScalarCast cast = doublescalar_cast_by_sdtype[restype];
+                for (int64_t f = 0; f < total; f++) {
+                    int64_t indices[NDARRAY_MAX_DIMENSIONS];
+                    assign_indices(src->nd, src->dimensions, f, indices);
+                    char *address = get_address(src->data, indices, src->strides, src->nd);
+                    double value = address_to_double(address, src->sdtype);
+                    cast(result->data + f * result->itemsize, value);
+                } break;
+            }
         }
     }
     return result;
@@ -124,10 +171,9 @@ np_cast (NdArray *src, SDType restype) {
     return NULL;
 }
 
-// エラー条件を検出する必要
 /* np arange */
 NdArray*
-np_arange(int start, int end, int step, SDType sdtype, char order)
+np_arange(double start, double end, double step, SDType sdtype, char order) //lも実装予定
 {
     NdArray *result = NULL;
     if (step == 0) {
@@ -135,7 +181,7 @@ np_arange(int start, int end, int step, SDType sdtype, char order)
         goto fail;
     }
 	int nd = NDARRAY_MIN_ND;
-	int64_t dimensions[NDARRAY_MAX_DIMENSIONS] = {(end - start) / step};
+	int64_t dimensions[NDARRAY_MAX_DIMENSIONS] = {(int64_t)ceil((end - start) / step)};
     int itemsize = itemsize_cast_by_sdtype(sdtype);
     if (itemsize == -1) {
         SET_ERROR_MESSAGE("np_arange: unsupported sdtype.");
@@ -148,11 +194,11 @@ np_arange(int start, int end, int step, SDType sdtype, char order)
     }
     DoubleScalarCast cast = doublescalar_cast_by_sdtype[sdtype];
     if (cast == NULL) {
-        SET_ERROR_MESSAGE("np_arange: unsupported sdtype for cast.");
+        SET_ERROR_MESSAGE("np_arange: cast is NULL.");
         goto fail;
     }
 	for (int i = 0; i < dimensions[0]; i++) {
-		double value = (double)(start + i * step);
+		double value = start + i * step;
         cast(result->data + i * itemsize, value);
 	}
     return result;
@@ -519,6 +565,21 @@ np_broadcast_to(NdArray *src, int64_t *dest_dimensions, int dest_nd)
 	else {
 		assign_flags_c_contiguous_off(&result->flags);
 	}
+    return result;
+    fail:
+        ndarray_free(result);
+        return NULL;
+}
+
+/* properties */
+int64_t* np_shape(NdArray *src)
+{
+    int64_t* result = NULL;
+    result = ndarray_shape(src);
+    if (result == NULL) {
+        SET_ERROR_MESSAGE("np_shape: result is NULL.");
+        goto fail;
+    }
     return result;
     fail:
         ndarray_free(result);

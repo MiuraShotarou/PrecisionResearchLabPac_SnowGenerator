@@ -18,9 +18,24 @@ typedef enum SDType {/* C言語 */
     Double,         /* double */
 } SDType;
 
-typedef enum SafeCastType {
-    
-}
+typedef enum OpType {
+    Add,
+    Subtract,
+    Multiply,
+    Divide,
+    Modulo,
+    Less,
+    Less_Equal,
+    Greater,
+    Greater_Equal,
+    Equal,
+    Not_Equal,
+    Logical_And,
+    Logical_Or,
+    Logical_Xor,
+    Logical_Not,
+    Negative,
+} OpType;
 
 typedef enum PadModeType {
     Constant,    // 定数値でパディング（デフォルト：0）
@@ -140,24 +155,6 @@ typedef enum {
     MEM_OVERLAP_YES     = 1,  // 重複あり
     MEM_OVERLAP_UNKNOWN = 2,  // 不明
 } mem_overlap_t;
-
-/* ============================================================
- * ARRAY FLAGS - 配列フラグ（ビットフラグ）
- * ============================================================ */
-typedef enum ARRAY_FLAGS { //NPY_ALIGNED_CASTING_FLAG
-    ARRAY_C_CONTIGUOUS    = 0x0001, /* C順で連続したメモリ */
-    ARRAY_F_CONTIGUOUS    = 0x0002, /* Fortran順で連続したメモリ */
-    ARRAY_OWNDATA         = 0x0004, /* データの所有権を持つ */
-    ARRAY_FORCECAST       = 0x0010, /* 強制的に型キャスト */
-    ARRAY_ENSURECOPY      = 0x0020, /* 必ずコピーを作成 */
-    ARRAY_ENSUREARRAY     = 0x0040, /* 必ずndarrayに変換 */
-    ARRAY_ELEMENTSTRIDES  = 0x0080, /* 要素単位のストライド */
-    ARRAY_ALIGNED         = 0x0100, /* メモリアライメントあり */
-    ARRAY_NOTSWAPPED      = 0x0200, /* バイトスワップなし */
-    ARRAY_WRITEABLE       = 0x0400, /* 書き込み可能 */
-    ARRAY_WRITEBACKIFCOPY = 0x2000, /* コピー時に書き戻し */
-    ARRAY_WARN_ON_WRITE   = 0x4000  /* 書き込み時に警告 */
-} ARRAY_FLAGS;
 
 typedef enum {
     NPY_METH_NO_FLOATINGPOINT_ERRORS = 1 << 0, // 浮動小数点エラーを発生させない

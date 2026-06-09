@@ -21,8 +21,6 @@ using UnityEditor.Build.Reporting;
 // 使用される基本プリミティブ型はint, floatだが、大型開発用にdouble, longを基本に利用したメソッド群クラスを提供する
 // NdArray.IsReferenceの場合、書き込み操作を禁止する
 
-/// <summary> long, doubleなどのプリミティブ型操作見直し </summary>
-/// <summary> NdArrayViewクラスを実装する </summary>
 /// <summary> 実装しきれていないユーザーメソッドを実装する </summary>
 /// <summary> _pointer のnullチェックを忘れずに記述すること </summary>
 /// <summary> 現状、where T : unmanagedの付与により、Tへ参照型（stringなど）を渡すことができない </summary>
@@ -39,6 +37,7 @@ using UnityEditor.Build.Reporting;
 /// <summary> C言語側 errorをgo to形式で記述。fail 内でのローカルポインタの解放 </summary>
 /// <summary> C言語側 size_tの使用を検討 </summary>
 /// <summary> C言語側 random.cの完成 </summary>
+/// <summary> C言語側 SafeCastType関連で原理的にありえない関数や処理の削除 </summary>
 /// <summary> NdArrayのコンストラクタに、ユーザーが要素を指定して初期化できる実装を追加する </summary>
 /// <summary> IDisposableインターフェイスの実装を検討 </summary>
 /// <summary> CSLanguageNativeクラス内でジェネリクスを使用しない書き方にリファクタしたい </summary>
@@ -54,19 +53,18 @@ namespace SnowflakeNative
     {
         // private IntPtr _pointer; //IDisPosableを実装すべき
         private IntPtr _pointer;
-        private bool _isReference;
         /// <summary> for client method </summary>
-        public NdArray(long[] dimensions, char order = 'C')
+        public NdArray(int[] dimensions, char order = 'C')
         {
             int nd = dimensions.Length;
+            long[] l_dimensions = dimensions.Select(x => (long)x).ToArray();
             int itemsize = Marshal.SizeOf(typeof(T));
             SDType sdType = GenericsToSDType<T>();
-            _pointer = ndarray_create(nd, dimensions, itemsize, sdType);
+            _pointer = ndarray_create(nd, l_dimensions, itemsize, sdType);
             if (_pointer == IntPtr.Zero)
             {
                 throw new InvalidOperationException("ndarray_create failed.");
             }
-            _isReference = false;
         }
         public NdArray(T scalar, char order = 'C') //OK
         {
@@ -81,7 +79,7 @@ namespace SnowflakeNative
             // TODO
         }
         public void Dispose() => CSDispose(this._pointer); //ジェネリクス指定をしたくない
-        public bool IsView() => this._isReference;
+        public bool IsReference() => get_ndarray_flag_owndata(this._pointer);
         /// <summary> for developer method </summary>
         private NdArray()
         {
@@ -96,7 +94,7 @@ namespace SnowflakeNative
         /// <summary> INdArray </summary>
         IntPtr INdArray._pointer => this._pointer; //Indexerでのみ使用中
         SDType INdArray._sdtype => GenericsToSDType<T>();
-        bool   INdArray.IsReference => this._isReference;
+        bool   INdArray.IsReference => get_ndarray_flag_owndata(this._pointer);
 
         /// <summary> instance method </summary> //thisのTとメソッド内のTは同一の型として解釈される. //戻り値のTが引数のTと異なる可能性があるメソッドはTRsultを明記している。
         /// <summary> Copy </summary>
@@ -104,7 +102,13 @@ namespace SnowflakeNative
         /// <summary> Ravel </summary>
         public NdArray<T> Ravel() => Packing(new NdArray<T>(), CSRavel(this._pointer));
         /// <summary> Reshape </summary>
-        public NdArray<T> Reshape(long[] size) => Packing(new NdArray<T>(), CSReshape(this._pointer, size));
+        public NdArray<T> Reshape(int[] size) => Packing(new NdArray<T>(), CSReshape(this._pointer, size)); // 要素数が一致していないとエラー
+        /// <summary> Resize </summary>
+        public NdArray<T> Resize(int[] size) => Packing(new NdArray<T>(), CSResize(this._pointer, size)); // 要素数が一致していなくても処理が通る
+        /// <summary> Transpose </summary>
+        public NdArray<T> Transpose(int[] size) => Packing(new NdArray<T>(), CSTranspose(this._pointer, size));
+        /// <summary> Squeeze </summary>
+        public NdArray<T> Squeeze() => Packing(new NdArray<T>(), CSSqueeze(this._pointer));
         /// <summary> Sum </summary>
         public NdArray<T> Sum(int axis = -1, bool keepdims = false) => Packing(new NdArray<T>(), CSSum(this._pointer, axis, keepdims));
         public T Sum() => CSSum<T>(this._pointer);
@@ -113,25 +117,21 @@ namespace SnowflakeNative
         /// <summary> Pad </summary>
         public NdArray<T> Pad(int pad_width, PadModeType mode, double value) => Packing(new NdArray<T>(), CSPad(this._pointer, pad_width, mode, value));
         /// <summary> BroadcastTo </summary>
-        public NdArray<T> BroadcastTo(long[] size) => Packing(new NdArray<T>(), CSBroadcastTo(this._pointer, size));
+        public NdArray<T> BroadcastTo(int[] size) => Packing(new NdArray<T>(), CSBroadcastTo(this._pointer, size));
         
         /// <summary> no instance method compulsion T </summary> //NdArray<T>.(メソッド名)でメソッド内のTを強制指定
         /// <summary> Zeros </summary>
-        public static NdArray<T> Zeros(long[] size) => Packing(new NdArray<T>(), CSZeros<T>(size));
+        public static NdArray<T> Zeros(int[] size) => Packing(new NdArray<T>(), CSZeros<T>(size));
         /// <summary> Ones </summary>
-        public static NdArray<T> Ones(long[] size) => Packing(new NdArray<T>(), CSOnes<T>(size));
+        public static NdArray<T> Ones(int[] size) => Packing(new NdArray<T>(), CSOnes<T>(size));
         /// <summary> Full </summary>
-        public static NdArray<T> Full(long[] size, double value) => Packing(new NdArray<T>(), CSFull<T>(size, value));
+        public static NdArray<T> Full(int[] size, T value) => Packing(new NdArray<T>(), CSFull<T>(size, value));
         
         /// <summary> no instance method not compulsion T </summary> //NdArray<T>.(メソッド名)でメソッド内のTを指定。NdArray.(メソッド名)で指定しないことも可能
         /// <summary> Arange </summary>
-        public static NdArray<T> Arange(int end, char order) => Packing(new NdArray<T>(), CSArange<T>(0, end, 1, order));
-        public static NdArray<T> Arange(int start, int end, char order) => Packing(new NdArray<T>(), CSArange<T>(start, end, 1, order));
-        public static NdArray<T> Arange(int start, int end, int step, char order) => Packing(new NdArray<T>(), CSArange<T>(start, end, step, order));
-        /// <summary> LArange </summary>
-        public static NdArray<T> LArange(long end, char order) => Packing(new NdArray<T>(), CSLArange<T>(0, end, 1, order));
-        public static NdArray<T> LArange(long start, long end, char order) => Packing(new NdArray<T>(), CSLArange<T>(start, end, 1, order));
-        public static NdArray<T> LArange(long start, long end, long step, char order) => Packing(new NdArray<T>(), CSLArange<T>(start, end, step, order));
+        public static NdArray<T> Arange(float end, char order) => Packing(new NdArray<T>(), CSArange<T>(0, end, 1, order));
+        public static NdArray<T> Arange(float start, float end, char order) => Packing(new NdArray<T>(), CSArange<T>(start, end, 1, order));
+        public static NdArray<T> Arange(float start, float end, float step, char order) => Packing(new NdArray<T>(), CSArange<T>(start, end, step, order));
         /// <summary> Where </summary>
         public static NdArray<long> Where(NdArray<bool> conditions) => Packing(new NdArray<long>(), CSWhere(conditions._pointer));
         public static NdArray<T> Where(NdArray<bool> conditions, NdArray<T> a, NdArray<T> b) => Packing(new NdArray<T>(), CSWhere(conditions._pointer, a._pointer, b._pointer));
@@ -154,37 +154,39 @@ namespace SnowflakeNative
         }
         // 引数, 戻り値に NdArray<T>の使用を禁止
         protected static IntPtr CSCopy(IntPtr pointer) => ndarray_copy(pointer);
-        protected static IntPtr CSZeros<T>(long[] size) where T : unmanaged
+        protected static IntPtr CSZeros<T>(int[] size) where T : unmanaged
         {
             int size_nd = size.Length;
+            long[] l_size = size.Select(x => (long)x).ToArray();
             SDType sdtype = GenericsToSDType<T>();
-            return np_zeros(size, size_nd, sdtype);
+            return np_zeros(l_size, size_nd, sdtype);
         }
-        protected static IntPtr CSOnes<T>(long[] size) where T : unmanaged
+        protected static IntPtr CSOnes<T>(int[] size) where T : unmanaged
         {
             int size_nd = size.Length;
+            long[] l_size = size.Select(x => (long)x).ToArray();
             SDType sdtype = GenericsToSDType<T>();
-            return np_ones(size, size_nd, sdtype);
+            return np_ones(l_size, size_nd, sdtype);
         }
-        protected static IntPtr CSFull<T>(long[] size, double value) where T : unmanaged
+        protected static IntPtr CSFull<T>(int[] size, T value) where T : unmanaged
         {
             SDType sdtype = GenericsToSDType<T>();
             int size_nd = size.Length;
-            IntPtr result = np_full(size, size_nd, value, sdtype);
+            long[] l_size = size.Select(x => (long)x).ToArray();
+            int itemsize = ItemSizeCastBySDtype(sdtype);
+            IntPtr pointer = Marshal.AllocHGlobal(itemsize);
+            Marshal.StructureToPtr(value, pointer, false);
+            IntPtr result = np_full(l_size, size_nd, pointer, sdtype);
+            Marshal.FreeHGlobal(pointer); //解放
             if (result == IntPtr.Zero) {
                 throw new InvalidOperationException(GetErrorMessage());
             }
             return result;
         }
-        protected static IntPtr CSArange<T>(int start, int end, int step, char order) where T : unmanaged
+        protected static IntPtr CSArange<T>(float start, float end, float step, char order) where T : unmanaged
         {
             SDType resType = GenericsToSDType<T>();
             return np_arange(start, end, step, resType, order); //orderはC言語で処理するかFortranで処するかを指定する
-        }
-        protected static IntPtr CSLArange<T>(long start, long end, long step, char order) where T : unmanaged
-        {
-            SDType resType = GenericsToSDType<T>();
-            return np_d_arange(start, end, step, resType, order);
         }
         protected static IntPtr CSArrayCast<TResult>(IntPtr pointer) where TResult : unmanaged
         {
@@ -229,13 +231,14 @@ namespace SnowflakeNative
         }
 
         /// <summary> np_broadcast_to </summary>
-        protected static IntPtr CSBroadcastTo(IntPtr pointer, long[] size)
+        protected static IntPtr CSBroadcastTo(IntPtr pointer, int[] size)
         {
             int size_nd = size.Length;
-            return np_broadcast_to(pointer, size, size_nd);
+            long[] l_size = size.Select(x => (long)x).ToArray();
+            return np_broadcast_to(pointer, l_size, size_nd);
         }
         
-        protected static IntPtr CSSqueeze<T>(IntPtr pointer) where T : unmanaged
+        protected static IntPtr CSSqueeze(IntPtr pointer)
         {
            return np_squeeze(pointer);
         }
@@ -252,16 +255,18 @@ namespace SnowflakeNative
         {
             return np_ravel(pointer);
         }
-        protected static IntPtr CSReshape(IntPtr pointer, long[] size)
+        protected static IntPtr CSReshape(IntPtr pointer, int[] size)
         {
             int size_nd = size.Length;
-            return np_reshape(pointer, size, size_nd);
+            long[] l_size = size.Select(x => (long)x).ToArray();
+            return np_reshape(pointer, l_size, size_nd);
         }
         /// <summary> Resize </summary>
-        protected static IntPtr CSResize(IntPtr pointer, long[] size)
+        protected static IntPtr CSResize(IntPtr pointer, int[] size)
         {
             int size_nd = size.Length;
-            IntPtr result = np_resize(pointer, size, size_nd);
+            long[] l_size = size.Select(x => (long)x).ToArray();
+            IntPtr result = np_resize(pointer, l_size, size_nd);
             // if (result == IntPtr.Zero) {
             //     throw new InvalidOperationException(GetErrorMessage());
             // }
@@ -302,10 +307,11 @@ namespace SnowflakeNative
             return result;
         }
 
-        protected static IntPtr CSTranspose(IntPtr pointer, long[] size)
+        protected static IntPtr CSTranspose(IntPtr pointer, int[] size)
         {
             // size の例外条件洗い出し
-            return np_transpose(pointer, size);
+            long[] l_size = size.Select(x => (long)x).ToArray();
+            return np_transpose(pointer, l_size);
         }
         /// <summary> 便利系 </summary>
         protected static SDType GenericsToSDType<T>() where T : unmanaged
@@ -422,6 +428,9 @@ namespace SnowflakeNative
         /// <summary> Copy </summary>
         [DllImport(DLL_Name, CallingConvention = CallingConvention.Cdecl)]
         protected static extern IntPtr ndarray_copy(IntPtr src);
+        /// <summary> Convert </summary>
+        [DllImport(DLL_Name, CallingConvention = CallingConvention.Cdecl)]
+        protected static extern IntPtr ndarray_convert(IntPtr src, int nd, long[] dimensions, int itemsize, SDType sdtype);
         /// <summary> Zeros </summary>
         [DllImport(DLL_Name, CallingConvention = CallingConvention.Cdecl)]
         protected static extern IntPtr np_zeros(long[] size, int size_nd, SDType sdtype);
@@ -430,16 +439,13 @@ namespace SnowflakeNative
         protected static extern IntPtr np_ones(long[] size, int size_nd, SDType sdtype);
         /// <summary> Full </summary>
         [DllImport(DLL_Name, CallingConvention = CallingConvention.Cdecl)]
-        protected static extern IntPtr np_full(long[] size, int size_nd, double value, SDType sdtype);
+        protected static extern IntPtr np_full(long[] size, int size_nd, IntPtr value, SDType sdtype);
         /// <summary> Empty </summary>
         [DllImport(DLL_Name, CallingConvention = CallingConvention.Cdecl)]
         protected static extern IntPtr np_empty(long[] size, int size_nd, SDType sdtype); //不要
         /// <summary> Arange </summary>
         [DllImport(DLL_Name, CallingConvention = CallingConvention.Cdecl)]
-        protected static extern IntPtr np_arange(int start, int end, int step, SDType sdType, char order);
-        /// <summary> LArange </summary>
-        [DllImport(DLL_Name, CallingConvention = CallingConvention.Cdecl)]
-        protected static extern IntPtr np_d_arange(double start, double end, double step, SDType sdtype, char order);
+        protected static extern IntPtr np_arange(double start, double end, double step, SDType sdType, char order);
         /// <summary> Indices </summary>
         [DllImport(DLL_Name, CallingConvention = CallingConvention.Cdecl)]
         protected static extern IntPtr np_indices(long[] shape, int shape_nd, SDType sdtype);
@@ -514,7 +520,6 @@ namespace SnowflakeNative
         /// <summary> Cast（astype） </summary>
         [DllImport(DLL_Name, CallingConvention = CallingConvention.Cdecl)]
         protected static extern IntPtr np_cast(IntPtr src, SDType restype);
-        
         // ----------------------------------------------------------------
         // プロパティ取得系
         // ----------------------------------------------------------------
@@ -532,6 +537,9 @@ namespace SnowflakeNative
         /// <summary> nbytes 総バイト数 </summary>
         /// <summary> strides 各次元のストライド </summary>
         /// <summary> data データバッファへのポインタ → これはなし </summary>
+        /// <summary> FLAG_OWNDATA </summary>
+        [DllImport(DLL_Name, CallingConvention = CallingConvention.Cdecl)]
+        protected static extern bool get_ndarray_flag_owndata(IntPtr src);
         
         /// <summary> ndarray_free </summary>
         [DllImport(DLL_Name, CallingConvention = CallingConvention.Cdecl)]
