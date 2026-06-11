@@ -1,3 +1,5 @@
+// macro.h
+
 #ifndef MACRO_H
 #define MACRO_H
 
@@ -14,6 +16,8 @@
 #define NDARRAY_MAX_ND         64
 #define NDARRAY_MAX_DIMENSIONS 64
 #define NDARRAY_MAX_INDICES	   64
+
+#define INDICES_MAX_CAPACITY(obj) (obj->count)
 
 #define NDARRAY_FLAG_C_CONTIGUOUS    0x0001  // C言語順でメモリが連続しているかどうか（strides の値がndarray_createで利用されている計算と正しいか）
 #define NDARRAY_FLAG_F_CONTIGUOUS    0x0002  // Fortran順でメモリが連続しているかどうか

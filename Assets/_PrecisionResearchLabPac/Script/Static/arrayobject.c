@@ -179,12 +179,12 @@ ndarray_shape(NdArray *src)
     return shape;
 }
 
-NdArray*
+IndicesObject*
 ndarray_indices(NdArray *src)
 {
 	NdArray *result = NULL;
-	if (shape == NULL || shape_nd < 1) {
-		SET_ERROR_MESSAGE("np_indices: shape is NULL or shape_nd is invalid.");
+	if (src == NULL) {
+		SET_ERROR_MESSAGE("np_indices: src is NULL.");
 		goto fail;
 	}
 	// result の形状: (shape_nd, shape[0], shape[1], ..., shape[shape_nd-1])
@@ -194,25 +194,23 @@ ndarray_indices(NdArray *src)
 	for (int i = 0; i < src->nd; i++) {
 		dimensions[i + 1] = src->dimensions[i];
 	}
-	int itemsize = src->itemsize;
-	
-	result = ndarray_create(nd, dimensions, itemsize, sdtype);
+	result = ndarray_create(nd, dimensions, src->itemsize, src->sdtype);
 	if (result == NULL) {
-		SET_ERROR_MESSAGE("np_indices: ndarray_create failed.");
+		SET_ERROR_MESSAGE("np_indices: result is NULL.");
 		goto fail;
 	}
-	int64_t total = get_totalelements(shape_nd, shape);
-	LongScalarCast cast = longscalar_cast_by_sdtype[sdtype];
+	int64_t total = get_totalelements(src->nd, src->dimensions);
+	LongScalarCast cast = longscalar_cast_by_sdtype[result->sdtype];
 	if (cast == NULL) {
 		SET_ERROR_MESSAGE("np_indices: cast is NULL.");
 		goto fail;
 	}
 	// 各次元のインデックスを格納
-	for (int d = 0; d < shape_nd; d++) {
+	for (int d = 0; d < src->nd; d++) {
 		for (int64_t f = 0; f < total; f++) {
 			int64_t indices[NDARRAY_MAX_DIMENSIONS];
-			assign_indices(shape_nd, shape, f, indices);
-			int64_t offset = d * total + f;
+			assign_indices(src->nd, src->dimensions, f, indices);
+			int64_t offset = d * total + f; //
 			cast(result->data + offset * itemsize, indices[d]);
 		}
 	}
