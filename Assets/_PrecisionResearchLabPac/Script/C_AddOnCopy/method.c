@@ -320,9 +320,8 @@ np_sum_return_array(NdArray *src, int32_t axis, bool keepdims)
         ndarray_free(cast_array);
         return NULL;
 }
-
 NdArray*
-np_pad(NdArray *src, int32_t pad_width, PadModeType mode, double value)
+np_pad(NdArray *src, int64_t pad_width, PadModeType mode, void* value)
 {
     NdArray *result = NULL;
     if (src == NULL) {
@@ -341,10 +340,13 @@ np_pad(NdArray *src, int32_t pad_width, PadModeType mode, double value)
     int nd = src->nd;
     int64_t dimensions[NDARRAY_MAX_DIMENSIONS];
     for (int d = 0; d < nd; d++) {
-        dimensions[d] = src->dimensions[d] + (int64_t)pad_width * 2;
+        dimensions[d] = src->dimensions[d] + pad_width * 2;
     }
-    /* 出力配列を生成 */
-    result = np_full(dimensions, nd, value, src->sdtype, 'C'); //最初からfullで追加ぶんを代入しておく
+    result = ndarray_create(nd, dimensions, src->itemsize, src->sdtype); //(int nd, int64_t *dimensions, int itemsize, SDType sdtype)
+    /* PadModeTypeごとに出力配列を生成 */
+    //result = np_full(dimensions, nd, value, src->sdtype, 'C'); //最初からfullで追加ぶんを代入しておく
+    Assign_Switch_Pading assign_pad = assign_switch_pading_table[mode];
+    assign_pad(src, value, pad_width, result);
     if (result == NULL) {
         SET_ERROR_MESSAGE("np_pad: result is NULL.");
         goto fail;
@@ -366,6 +368,80 @@ np_pad(NdArray *src, int32_t pad_width, PadModeType mode, double value)
     fail:
         ndarray_free(result);
         return NULL;
+}
+/*
+    Constant,    // 固定値で埋める（デフォルト：0）//
+    Edge,        // 端の値で埋める
+    LinearRamp,  // 端の値から終端値への線形補間で埋める
+    Maximum,     // 最大値で埋める
+    Mean,        // 平均値で埋める
+    Median,      // 中央値で埋める
+    Minimum,     // 最小値で埋める
+    Reflect,     // 端の値を軸に反転して埋める
+    Symmetric,   // 端の値を含めて対称に埋める
+    Wrap,        // 配列を循環させて埋める
+    Empty,       // 未定義値で埋める
+*/
+void assign_pad_constant(NdArray* src, void *value, int64_t pad_width, NdArray *out_result)
+{
+    out_result = np_full(out_result->dimensions, out_result->nd, value, src->itemsize, 'C'); //最初からfullで追加ぶんを代入しておく
+}
+void assign_pad_edge(NdArray* src, void *value, int64_t pad_width, NdArray *out_result)
+{//端の値で埋める
+    // dimensionsを中心に見るべき → 拡張した部分だけ取り敢えず埋めれば良い
+    int64_t total = get_totalelements(out_result->nd, out_result->dimensions);
+    for (int64_t f = 0; f < total; f++) {
+        int64_t res_indices[NDARRAY_MAX_DIMENSIONS];
+        assign_indices(out_result->nd, out_result->dimensions, f, res_indices);
+        int64_t src_indices[NDARRAY_MAX_DIMENSIONS];
+        assign_adgust_and_clampindices(src_indices, res_indices, src->nd, pad_width, src); // 飽くまで、edgeモードでしか使えない仕様
+        
+        char *src_address = get_address(src->data, src_indices, src->strides, src->nd);
+        char *res_address = get_address(result->data, res_indices, result->strides, result->nd);
+        memcpy(res_address, src_address, src->itemsize);
+    }
+}
+void assign_pad_linearramp(NdArray* src, void *value, int64_t pad_width, NdArray *out_result)
+{
+}
+void assign_pad_maximum(NdArray* src, void *value, int64_t pad_width, NdArray *out_result)
+{
+}
+void assign_pad_mean(NdArray* src, void *value, int64_t pad_width, NdArray *out_result)
+{
+}
+void assign_pad_median(NdArray* src, void *value, int64_t pad_width, NdArray *out_result)
+{
+}
+void assign_pad_minimum(NdArray* src, void *value, int64_t pad_width, NdArray *out_result)
+{
+}
+void assign_pad_reflect(NdArray* src, void *value, int64_t pad_width, NdArray *out_result)
+{
+}
+void assign_pad_symmetric(NdArray* src, void *value, int64_t pad_width, NdArray *out_result)
+{
+}
+void assign_pad_wrap(NdArray* src, void *value, int64_t pad_width, NdArray *out_result)
+{
+}
+void assign_pad_empty(NdArray* src, void *value, int64_t pad_width, NdArray *out_result)
+{
+}
+void
+assign_adjust_and_clampindices(int64_t* out_indices, int64_t* src_indices, int indices_nd, int64_t pad_width, NdArray * src)
+{
+    for (int d = 0; d < indices_nd; d++) {
+        if (out_indices[d] < pad_width) {
+            out_indices[d] = 0;
+        }
+        else if (out_indices[d] >= src->dimensions[d] + pad_width) {
+            out_indices[d] = src->dimensions[d] - 1;
+        }
+        else {
+            out_indices[d] = src_indices[d] - pad_width;
+        }
+    }
 }
 
 NdArray*
@@ -572,16 +648,107 @@ np_broadcast_to(NdArray *src, int64_t *dest_dimensions, int dest_nd)
 }
 
 /* properties */
-int64_t* np_shape(NdArray *src)
+int
+np_nd(NdArray *src)
 {
-    int64_t* result = NULL;
-    result = ndarray_shape(src);
-    if (result == NULL) {
-        SET_ERROR_MESSAGE("np_shape: result is NULL.");
+    if (src == NULL) {
+        SET_ERROR_MESSAGE("np_nd: src is NULL.");
         goto fail;
     }
-    return result;
+    return src->nd;
     fail:
-        ndarray_free(result);
-        return NULL;
+        return -1;
+}
+void
+np_shape(NdArray *src, int64_t *out_result)
+{
+    if (src == NULL) {
+        SET_ERROR_MESSAGE("np_shape: src is NULL.");
+        goto fail;
+    }
+    if (out_result == NULL) {
+        SET_ERROR_MESSAGE("np_shape: out_result is NULL.");
+        goto fail;
+    }
+    memcpy(out_result, src->dimensions, sizeof(int64_t) * src->nd);
+    fail:
+        return;
+}
+void
+np_strides(NdArray *src, int64_t *out_result)
+{
+    if (src == NULL) {
+        SET_ERROR_MESSAGE("np_strides: src is NULL.");
+        goto fail;
+    }
+    if (out_result == NULL) {
+        SET_ERROR_MESSAGE("np_strides: out_result is NULL.");
+        goto fail;
+    }
+    memcpy(out_result, src->strides, sizeof(int64_t) * src->nd);
+    return;
+    fail:
+        return;
+}
+int32_t
+np_itemsize(NdArray *src)
+{
+    if (src == NULL) {
+        SET_ERROR_MESSAGE("np_itemsize: src is NULL.");
+        goto fail;
+    }
+    return src->itemsize;
+    fail:
+        return -1;
+}
+int64_t
+np_nbytes(NdArray *src)
+{
+    if (src == NULL) {
+        SET_ERROR_MESSAGE("np_nbytes: src is NULL.");
+        goto fail;
+    }
+    return get_totalelements(src->nd, src->dimensions) * src->itemsize;
+    fail:
+        return -1;
+}
+void
+np_indices(NdArray *src, NdArray **out_result, SDType restype)
+{
+    if (src == NULL) {
+        SET_ERROR_MESSAGE("np_indices: src is NULL.");
+        goto fail;
+    }
+    if (out_result == NULL) {
+        SET_ERROR_MESSAGE("np_indices: out_result is NULL.");
+        goto fail;
+    }
+    if (restype != Int && restype != Long) {
+        SET_ERROR_MESSAGE("ndarray_indices: restype is invalid.");
+        goto fail;
+    }
+    int itemsize = itemsize_cast_by_sdtype(restype);
+    int64_t total = get_totalelements(src->nd, src->dimensions);
+    for (int64_t f = 0; f < total; f++) {
+        int64_t indices[NDARRAY_MAX_DIMENSIONS];
+        assign_indices(src->nd, src->dimensions, f, indices);
+        int64_t dimensions[NDARRAY_MIN_DIMENSIONS] = { src->nd };
+        NdArray *value = ndarray_create(NDARRAY_MIN_ND, dimensions, itemsize, restype);
+        if (value == NULL) {
+            SET_ERROR_MESSAGE("ndarray_indices: result is NULL.");
+            goto fail;
+        }
+        memcpy(value->data, indices, itemsize * src->nd);
+        assign_flags_isindices_on(&value->flags);
+        out_result[f] = value;
+    }
+    return;
+    fail:
+        return;
+}
+
+int64_t
+np_size(NdArray* src)
+{
+    return get_totalelements(src->nd, src->dimensions);
 }

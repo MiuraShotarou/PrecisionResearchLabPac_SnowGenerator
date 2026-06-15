@@ -14,18 +14,19 @@ public class Memo : MonoBehaviour
     private void Awake()
     {
         var hoge = new NdArray<int>(new long[]{3, 4});
+        var h = hoge[0];
         var list = new List<float>();
         INdArray Ihoge = new NdArray<int>(new long[]{3, 4});
         CSLanguageNative kk = new NdArray<int>(new long[]{3, 4});
         var Ihoge_p = Ihoge._pointer; //internalで阻止する予定
         
-        var zeros_f = NdArray<float>.Zeros(new long[] { 3, 4 });
+        var zeros_f = NdArray<float>.Zeros(new [] { 3, 4 });
         var fuga = zeros_f.Cast<int>();
         hoge += fuga;
         zeros_f = new long[]{3, 4};
         
         NdArray<int> foo = NdArray<int>.Concatenate(new []{fuga} , 0);
-        var zeros_i = NdArray<int>.Zeros(new long[] { 3, 4 });
+        var zeros_i = NdArray<int>.Zeros(new [] { 3, 4 });
         zeros_i = zeros_i.Sum();
         var zeros_scalar_f = zeros_i.Sum();
 

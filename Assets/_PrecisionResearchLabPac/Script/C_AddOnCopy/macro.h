@@ -22,6 +22,7 @@
 #define NDARRAY_FLAG_C_CONTIGUOUS    0x0001  // C言語順でメモリが連続しているかどうか（strides の値がndarray_createで利用されている計算と正しいか）
 #define NDARRAY_FLAG_F_CONTIGUOUS    0x0002  // Fortran順でメモリが連続しているかどうか
 #define NDARRAY_FLAG_OWNDATA         0x0004  // 生データを所有している（書き込み可能である）
+#define NDARRAY_FLAG_ISINDICES       0x0008
 
 #define AXIS_NONE INT32_MAX
 

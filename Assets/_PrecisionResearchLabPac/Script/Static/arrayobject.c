@@ -170,55 +170,6 @@ ndarray_shape(NdArray *src)
 */
 
 /* properties */
-int64_t*
-ndarray_shape(NdArray *src)
-{
-    int64_t *shape = (int64_t *)malloc(sizeof(int64_t) * src->nd);
-    if (shape == NULL) return NULL;
-    memcpy(shape, src->dimensions, sizeof(int64_t) * src->nd);
-    return shape;
-}
-
-IndicesObject*
-ndarray_indices(NdArray *src)
-{
-	NdArray *result = NULL;
-	if (src == NULL) {
-		SET_ERROR_MESSAGE("np_indices: src is NULL.");
-		goto fail;
-	}
-	// result の形状: (shape_nd, shape[0], shape[1], ..., shape[shape_nd-1])
-	int nd = src->nd + 1;
-	int64_t dimensions[NDARRAY_MAX_DIMENSIONS];
-	dimensions[0] = src->nd;
-	for (int i = 0; i < src->nd; i++) {
-		dimensions[i + 1] = src->dimensions[i];
-	}
-	result = ndarray_create(nd, dimensions, src->itemsize, src->sdtype);
-	if (result == NULL) {
-		SET_ERROR_MESSAGE("np_indices: result is NULL.");
-		goto fail;
-	}
-	int64_t total = get_totalelements(src->nd, src->dimensions);
-	LongScalarCast cast = longscalar_cast_by_sdtype[result->sdtype];
-	if (cast == NULL) {
-		SET_ERROR_MESSAGE("np_indices: cast is NULL.");
-		goto fail;
-	}
-	// 各次元のインデックスを格納
-	for (int d = 0; d < src->nd; d++) {
-		for (int64_t f = 0; f < total; f++) {
-			int64_t indices[NDARRAY_MAX_DIMENSIONS];
-			assign_indices(src->nd, src->dimensions, f, indices);
-			int64_t offset = d * total + f; //
-			cast(result->data + offset * itemsize, indices[d]);
-		}
-	}
-	return result;
-	fail:
-		ndarray_free(result);
-	return NULL;
-}
 
 /* convenience */
 bool

@@ -14,3 +14,11 @@ void assign_flags_c_contiguous_off(int *out_flags)
 {
     *out_flags &= ~NDARRAY_FLAG_C_CONTIGUOUS;
 }
+void assign_flags_isindices_on(int *out_flags)
+{
+    *out_flags |= NDARRAY_FLAG_INDICES;
+}
+void assign_flags_isindices_off(int *out_flags)
+{
+    *out_flags &= ~NDARRAY_FLAG_INDICES;
+}
