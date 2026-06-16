@@ -31,20 +31,6 @@ assign_indices(int nd, int64_t *dimensions, int64_t flat, int64_t *out_indices)
         tmp /= dimensions[d];
     }
 }
-bool
-check_indices_inbounds(NdArray *src, int64_t *indices) //pading用ではない
-{
-    if (src == NULL || indices == NULL) {
-        SET_ERROR_MESSAGE("check_indices_inbounds: argument is NULL.");
-        return false;
-    }
-    for (int d = 0; d < src->nd; d++) {
-        if (indices[d] >= src->dimensions[d]) {
-            return false;
-        }
-    }
-    return true;
-}
 
 /* indices to flat */
 int64_t

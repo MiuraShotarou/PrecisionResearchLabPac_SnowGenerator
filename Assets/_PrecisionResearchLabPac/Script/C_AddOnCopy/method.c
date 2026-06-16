@@ -384,25 +384,102 @@ np_pad(NdArray *src, int64_t pad_width, PadModeType mode, void* value)
 */
 void assign_pad_constant(NdArray* src, void *value, int64_t pad_width, NdArray *out_result)
 {
-    out_result = np_full(out_result->dimensions, out_result->nd, value, src->itemsize, 'C'); //最初からfullで追加ぶんを代入しておく
-}
-void assign_pad_edge(NdArray* src, void *value, int64_t pad_width, NdArray *out_result)
-{//端の値で埋める
-    // dimensionsを中心に見るべき → 拡張した部分だけ取り敢えず埋めれば良い
     int64_t total = get_totalelements(out_result->nd, out_result->dimensions);
     for (int64_t f = 0; f < total; f++) {
         int64_t res_indices[NDARRAY_MAX_DIMENSIONS];
         assign_indices(out_result->nd, out_result->dimensions, f, res_indices);
         int64_t src_indices[NDARRAY_MAX_DIMENSIONS];
-        assign_adgust_and_clampindices(src_indices, res_indices, src->nd, pad_width, src); // 飽くまで、edgeモードでしか使えない仕様
-        
-        char *src_address = get_address(src->data, src_indices, src->strides, src->nd);
-        char *res_address = get_address(result->data, res_indices, result->strides, result->nd);
-        memcpy(res_address, src_address, src->itemsize);
+        bool inbounds = check_indicesinbounds_and_assign_indicestosrc(res_indices, src->nd, pad_width, src, src_indices, Constant); //src側とindexが対応するようres_indicesを変換し、src_indicesに代入する
+        char *value_adress;
+        if (inbounds) { //拡張されていないindicesだった場合、
+            value_adress = get_address(src->data, src_indices, src->strides, src->nd);
+        }
+        else { //拡張されているindicesだった場合
+            value_adress = (char*)value;
+        }
+        char *out_address = get_address(out_result->data, res_indices, out_result->strides, out_result->nd);
+        memcpy(out_address, src_address, src->itemsize);
     }
 }
-void assign_pad_linearramp(NdArray* src, void *value, int64_t pad_width, NdArray *out_result)
-{
+void assign_pad_edge(NdArray* src, void *value, int64_t pad_width, NdArray *out_result)
+{//端の値で埋める
+    int64_t total = get_totalelements(out_result->nd, out_result->dimensions);
+    for (int64_t f = 0; f < total; f++) {
+        int64_t res_indices[NDARRAY_MAX_DIMENSIONS];
+        assign_indices(out_result->nd, out_result->dimensions, f, res_indices);
+        int64_t src_indices[NDARRAY_MAX_DIMENSIONS];
+        bool inbounds = check_indicesinbounds_and_assign_indicestosrc(res_indices, src->nd, pad_width, src, src_indices, Edge); //src側とindexが対応するようres_indicesを変換し、src_indicesに代入する
+        char *value_adress = get_address(src->data, src_indices, src->strides, src->nd);
+        char *out_address = get_address(out_result->data, res_indices, out_result->strides, out_result->nd);
+        memcpy(out_address, src_address, src->itemsize);
+    }
+}
+void assign_pad_linearramp(NdArray* src, void *end_value, int64_t pad_width, NdArray *out_result)
+{// 中央から端に向かって、値を線形補間
+    int64_t total = get_totalelements(out_result->nd, out_result->dimensions);
+    for (int64_t f = 0; f < total; f++) {
+        int64_t res_indices[NDARRAY_MAX_DIMENSIONS];
+        assign_indices(out_result->nd, out_result->dimensions, f, res_indices); //res_indicesの確定
+        int64_t src_indices[NDARRAY_MAX_DIMENSIONS];
+        bool inbounds = check_indicesinbounds_and_assign_indicestosrc(res_indices, src->nd, pad_width, src, src_indices, LinearRamp); //いまここ
+        if (inbounds) {
+            
+        }
+        else {
+            // src_indicesからvalueを計算し、変数として保持する
+            char *value_adress = get_address(src->data, src_indices, src->strides, src->nd);
+            int64_t dif_indices[NDARRAY_MAX_DIMENSIONS];
+            assign_??count_linearramp(src_indices, res_indices, dif_indices); //src_indicesはbaseへアクセスする
+            void *??count = 
+            assign_adjustvalue_linearramp(value_adress, end_value, &pad_width, ??count, value_adress);
+            
+            // それのアドレスをvalue_adressへ代入する
+            
+        }
+        
+        char *value_adress = get_address(src->data, src_indices, src->strides, src->nd);
+        char *out_address = get_address(out_result->data, res_indices, out_result->strides, out_result->nd);
+        memcpy(out_address, src_address, src->itemsize);
+    }
+    
+    // 線形補間アルゴリズム　→ (int32_t)round((value - end_value) * ??count / pad_width) ※end_value > value エラー
+    [[ 0  0  0  0  0  0]
+     [ 0  2  5 10  5  0]
+     [ 0  5 10 20 10  0] // 直接代入 == !(clamped_indices[d] <= pad_width || clamped_indices[d] >= src->dimensions[d] + pad_width)
+     [ 0 15 30 40 20  0] // 線形補間必要 == (clamped_indices[d] <= pad_width || clamped_indices[d] >= src->dimensions[d] + pad_width)
+     [ 0  7 15 20 10  0] // 線形補間 == value + (int32_t)round(abs(value - end_value) * ??count / pad_width)
+     [ 0  0  0  0  0  0]] //線形補間 がされるのは要素の値が不定のとき
+                         // ??countは、if 条件が外れた際の差分
+    [[ 0  0  0  0  0  0]
+     [ 0  0  0 10  5  0]
+     [ 0  0  0 20 10  0]
+     [ 0 15 30 40 20  0]
+     [ 0  7 15 20 10  0]
+     [ 0  0  0  0  0  0]]
+    
+    [[ 0  0  0  0  0  0]
+     [ 0  2  5 10  5  0]
+     [ 0  5 10 20 10  0]
+     [ 0 15 30 40 20  0]
+     [ 0 25 50 60 30  0]
+     [ 0 12 25 30 15  0]
+     [ 0  0  0  0  0  0]]
+    
+    [[ 0  0  0  0  0  0]
+     [ 0  2  5  5  2  0]
+     [ 0  5 10 10  5  0] // ??count == (src_indices[d] == pad_width) == pad_width
+     [ 0 15 30 40 20  0] // ??count == (src_indices[d] == pad_width - 1) == pad_width - 1
+     [ 0 25 50 60 30  0] // ??count == (base_indices[d] == 0) == pad_width - (pad_width - src_indices内で最小の値)
+     [ 0 12 25 30 15  0]
+     [ 0  0  0  0  0  0]]// ??count == (base_indices[d] == src->dimensions[d] - 1) == src->dimenisons[index] - src_indices内で最大の値
+    
+    [[60 60 60 60 60 60]
+     [60 47 35 35 47 60]
+     [60 35 10 10 35 60]
+     [60 45 30 40 50 60]
+     [60 55 50 60 60 60]
+     [60 57 55 60 60 60]
+     [60 60 60 60 60 60]]
 }
 void assign_pad_maximum(NdArray* src, void *value, int64_t pad_width, NdArray *out_result)
 {
@@ -428,18 +505,51 @@ void assign_pad_wrap(NdArray* src, void *value, int64_t pad_width, NdArray *out_
 void assign_pad_empty(NdArray* src, void *value, int64_t pad_width, NdArray *out_result)
 {
 }
-void
-assign_adjust_and_clampindices(int64_t* out_indices, int64_t* src_indices, int indices_nd, int64_t pad_width, NdArray * src)
+bool //
+check_indicesinbounds_and_assign_indicestosrc(int64_t *clamped_indices, int indices_nd, int64_t pad_width, NdArray *src, int64_t* out_result, PadModeType mode, )
 {
+    bool result = true;
     for (int d = 0; d < indices_nd; d++) {
-        if (out_indices[d] < pad_width) {
-            out_indices[d] = 0;
+        if (clamped_indices[d] <= pad_width) {
+            if (mode == Edge) {
+                out_result[d] = 0;
+            }
+            else if (mode == LinearRamp) { //右の式で利用されるvalueのアドレス先をindicesとして代入する → value + (int32_t)round(abs(value - end_value) * ??count / pad_width)
+                out_result[d] = 0;
+            }
+            result = false;
         }
-        else if (out_indices[d] >= src->dimensions[d] + pad_width) {
-            out_indices[d] = src->dimensions[d] - 1;
+        else if (clamped_indices[d] >= src->dimensions[d] + pad_width) {
+            if (mode == Edge) {
+                out_result[d] = src->dimensions[d] - 1;
+            }
+            else if (mode == LinearRamp) {
+                out_result[d] = src->dimensions[d] - 1;
+            }
+            result = false;
         }
         else {
-            out_indices[d] = src_indices[d] - pad_width;
+            out_result[d] = clamped_indices[d] - pad_width; // srcで渡されたindicesに対応するres_indicesを代入する
+        }
+    }
+    return result;
+}
+void 
+assign_adjustvalue_linearramp(void *base_value, void *end_value, void *pad_width, void *??count, void *out_result)
+{
+    *(int32_t *)result = *(int32_t *)a + *(int32_t *)b;
+    value + (int32_t)round(abs(value - end_value) * ??count / pad_width)
+}
+void
+assign_??count_linearramp(int64_t *src_indices, int64_t res_indices, int indices_nd, int64_t pad_width, int64_t out_result)
+{
+    for (int d = 0; d < indices_nd; d++) {
+        if (src_indices[d] <= pad_width) {
+            // ??count == (src_indices[d] <= pad_width) ==  pad_width - (pad_width - src_indices[d])
+            out_result[d] == pad_width - (pad_width - src_indices[d])
+        }
+        else if (clamped_indices[d] >= src->dimensions[d] + pad_width) {
+            
         }
     }
 }
