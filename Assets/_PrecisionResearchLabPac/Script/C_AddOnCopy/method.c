@@ -8,6 +8,8 @@ method.c
 // get_totalelementsの引数順を修正した
 // np_random_choiceをrandom.cに移した
 // np_ndarray_cast → np_cast にリネームした
+// np_sum_return_scalarの戻り値を、double → voidに。またその変更に伴って、第二引数 void *out_resultを追加した。
+// np_sum_return_scalar → assign_np_sum_return_scalar にリネームした
 
 /* np zeros */
 NdArray*
@@ -96,7 +98,7 @@ np_cast(NdArray *src, SDType restype) {
     NdArray *result = NULL;
     /* check NULL */
     if (src == NULL) {
-        SET_ERROR_MESSAGE("np_ndarray_cast: src is NULL.");
+        SET_ERROR_MESSAGE("np_cast: src is NULL.");
         goto fail;
     }
     /* create array */
@@ -104,7 +106,7 @@ np_cast(NdArray *src, SDType restype) {
     int64_t *dimensions = src->dimensions;
     int itemsize = itemsize_cast_by_sdtype(restype);
     if (itemsize == -1) {
-        SET_ERROR_MESSAGE("np_ndarray_cast: unsupported sdtype.");
+        SET_ERROR_MESSAGE("np_cast: unsupported sdtype.");
         goto fail;
     }
     result = ndarray_create(nd, dimensions, itemsize, restype);
@@ -115,7 +117,7 @@ np_cast(NdArray *src, SDType restype) {
     if (src->flags & NDARRAY_FLAG_C_CONTIGUOUS) {
         ArrayCast arraycast = srcarray_to_resarray_table[src->sdtype][restype];
         if (arraycast == NULL) {
-            SET_ERROR_MESSAGE("np_ndarray_cast: arraycast is NULL.");
+            SET_ERROR_MESSAGE("np_cast: arraycast is NULL.");
             goto fail; //pass C#
         }
         char* src_ptr = src->data;
@@ -207,30 +209,64 @@ np_arange(double start, double end, double step, SDType sdtype, char order) //l�
         return NULL;
 }
 
-double
-np_sum_return_scalar(NdArray *src)
+void
+assign_np_sum_return_scalar(NdArray *src, void *out_result)
 {
     NdArray *cast_array = NULL;
     if (src == NULL) {
-        SET_ERROR_MESSAGE("np_sum_return_scalar: src is NULL.");
+        SET_ERROR_MESSAGE("assign_np_sum_return_scalar: src is NULL.");
         goto fail;
     }
-    cast_array = np_ndarray_cast(src, Double);
+    SafeCastType safe = get_safecasttype(src->sdtype);
+    switch (safe->sdtype)
+    {
+        case Long:
+            cast_array = np_cast(src, Long);
+            break;
+        case ULong:
+            cast_array = np_cast(src, ULong);
+            break;
+        case Double:
+            cast_array = np_cast(src, Double);
+            break;
+    }
     if (cast_array == NULL) {
-        SET_ERROR_MESSAGE("np_sum_return_scalar: cast_array is NULL.");
+        SET_ERROR_MESSAGE("assign_np_sum_return_scalar: cast_array is NULL.");
         goto fail;
     }
     int64_t total = get_totalelements(cast_array->nd, cast_array->dimensions);
-    double result = 0.0;
-    double *data = (double *)cast_array->data;
-    for (int64_t i = 0; i < total; i++) {
-        result += data[i];
+    switch (safe->sdtype)
+    {
+        case Long:
+            int64_t sum_l = 0;
+            int64_t *ptr_l = (int64_t*)cast_array->data;
+            for (int64_t f = 0; f < total; f++) {
+                sum_l += ptr_l[f];
+            }
+            memcpy(out_result, &sum_l, src->itemsize);
+            break;
+        case ULong:
+            uint64_t sum_ul = 0;
+            uint64_t *ptr_ul = (uint64_t*)cast_array->data;
+            for (int64_t f = 0; f < total; f++) {
+                sum_ul += ptr_ul[f];
+            }
+            memcpy(out_result, &sum_ul, src->itemsize);
+            break;
+        case Double:
+            double sum_d = 0;
+            double *ptr_d = (double*)cast_array->data;
+            for (int64_t f = 0; f < total; f++) {
+                sum_d += ptr_d[f];
+            }
+            memcpy(out_result, &sum_d, src->itemsize);
+            break;
     }
     ndarray_free(cast_array);
-    return result;
+    return;
     fail:
         ndarray_free(cast_array);
-        return NAN;
+        out_result = NULL;
 }
 
 NdArray*
@@ -244,7 +280,7 @@ np_sum_return_array(NdArray *src, int32_t axis, bool keepdims)
     }
     /* conditions scalar */
     if (axis == AXIS_NONE) {
-        double scalar = np_sum_return_scalar(src);
+        double scalar = assign_np_sum_return_scalar(src);
         int64_t dims[NDARRAY_MIN_DIMENSIONS] = { NDARRAY_MIN_ND };
         result = np_full(dims, 1, scalar, src->sdtype, 'C');
         if (result == NULL) {
@@ -254,7 +290,7 @@ np_sum_return_array(NdArray *src, int32_t axis, bool keepdims)
         return result;
     }
     /* create cast_array */
-    cast_array = np_ndarray_cast(src, Double);
+    cast_array = np_cast(src, Double);
     if (cast_array == NULL) {
         SET_ERROR_MESSAGE("np_sum_return_array: cast_array is NULL.");
         goto fail;
@@ -351,19 +387,6 @@ np_pad(NdArray *src, int64_t pad_width, PadModeType mode, void* value)
         SET_ERROR_MESSAGE("np_pad: result is NULL.");
         goto fail;
     }
-    int64_t total = get_totalelements(src->nd, src->dimensions);
-	for (int64_t f = 0; f < total; f++) {
-    	int64_t src_indices[NDARRAY_MAX_DIMENSIONS];
-    	assign_indices(src->nd, src->dimensions, f, src_indices);
-    	char *src_address = get_address(src->data, src_indices, src->strides, src->nd);
-		int64_t res_indices[NDARRAY_MAX_DIMENSIONS];
-		// srcから算出したindicesは、pad_widthぶん値がずれている。
-		for (int d = 0; d < src->nd; d++) {
-    		res_indices[d] = src_indices[d] + pad_width;
-		}
-		char *res_address = get_address(result->data, res_indices, result->strides, result->nd);
-    	memcpy(res_address, src_address, src->itemsize);
-	}
     return result;
     fail:
         ndarray_free(result);
@@ -390,12 +413,12 @@ void assign_pad_constant(NdArray* src, void *value, int64_t pad_width, NdArray *
         assign_indices(out_result->nd, out_result->dimensions, f, res_indices);
         int64_t src_indices[NDARRAY_MAX_DIMENSIONS];
         bool inbounds = check_indicesinbounds_and_assign_indicestosrc(res_indices, src->nd, pad_width, src, src_indices, Constant); //src側とindexが対応するようres_indicesを変換し、src_indicesに代入する
-        char *value_adress;
+        char *value_address;
         if (inbounds) { //拡張されていないindicesだった場合、
-            value_adress = get_address(src->data, src_indices, src->strides, src->nd);
+            value_address = get_address(src->data, src_indices, src->strides, src->nd);
         }
         else { //拡張されているindicesだった場合
-            value_adress = (char*)value;
+            value_address = (char*)value;
         }
         char *out_address = get_address(out_result->data, res_indices, out_result->strides, out_result->nd);
         memcpy(out_address, src_address, src->itemsize);
@@ -409,7 +432,7 @@ void assign_pad_edge(NdArray* src, void *value, int64_t pad_width, NdArray *out_
         assign_indices(out_result->nd, out_result->dimensions, f, res_indices);
         int64_t src_indices[NDARRAY_MAX_DIMENSIONS];
         bool inbounds = check_indicesinbounds_and_assign_indicestosrc(res_indices, src->nd, pad_width, src, src_indices, Edge); //src側とindexが対応するようres_indicesを変換し、src_indicesに代入する
-        char *value_adress = get_address(src->data, src_indices, src->strides, src->nd);
+        char *value_address = get_address(src->data, src_indices, src->strides, src->nd);
         char *out_address = get_address(out_result->data, res_indices, out_result->strides, out_result->nd);
         memcpy(out_address, src_address, src->itemsize);
     }
@@ -421,74 +444,151 @@ void assign_pad_linearramp(NdArray* src, void *end_value, int64_t pad_width, NdA
         int64_t res_indices[NDARRAY_MAX_DIMENSIONS];
         assign_indices(out_result->nd, out_result->dimensions, f, res_indices); //res_indicesの確定
         int64_t src_indices[NDARRAY_MAX_DIMENSIONS];
-        bool inbounds = check_indicesinbounds_and_assign_indicestosrc(res_indices, src->nd, pad_width, src, src_indices, LinearRamp); //いまここ
-        if (inbounds) {
-            
-        }
-        else {
-            // src_indicesからvalueを計算し、変数として保持する
-            char *value_adress = get_address(src->data, src_indices, src->strides, src->nd);
-            int64_t dif_indices[NDARRAY_MAX_DIMENSIONS];
-            assign_??count_linearramp(src_indices, res_indices, dif_indices); //src_indicesはbaseへアクセスする
-            void *??count = 
-            assign_adjustvalue_linearramp(value_adress, end_value, &pad_width, ??count, value_adress);
-            
-            // それのアドレスをvalue_adressへ代入する
-            
-        }
-        
-        char *value_adress = get_address(src->data, src_indices, src->strides, src->nd);
+        int inbounds_type = check_indicesinbounds_and_assign_indicestosrc(res_indices, src->nd, pad_width, src, src_indices, LinearRamp); //src_indicesの確定
+        char *value_address = get_address(src->data, src_indices, src->strides, src->nd);
         char *out_address = get_address(out_result->data, res_indices, out_result->strides, out_result->nd);
-        memcpy(out_address, src_address, src->itemsize);
+        if (inbounds_type != 0) {
+            // src_indicesからvalueを計算し、変数として保持する
+            int64_t pad_i = get_pad_i_linearramp(res_indices, src->nd, src->dimentions, pad_width, inbounds_type);
+            // sdtypeに合うようvalueを算出する
+            // それのアドレスをvalue_adressへ代入する
+            assign_adjustvalue_linearramp(value_address, end_value, pad_width, pad_i, value_address, src->sdtype); //OK
+        }
+        memcpy(out_address, value_address, src->itemsize);
     }
-    
-    // 線形補間アルゴリズム　→ (int32_t)round((value - end_value) * ??count / pad_width) ※end_value > value エラー
-    [[ 0  0  0  0  0  0]
-     [ 0  2  5 10  5  0]
-     [ 0  5 10 20 10  0] // 直接代入 == !(clamped_indices[d] <= pad_width || clamped_indices[d] >= src->dimensions[d] + pad_width)
-     [ 0 15 30 40 20  0] // 線形補間必要 == (clamped_indices[d] <= pad_width || clamped_indices[d] >= src->dimensions[d] + pad_width)
-     [ 0  7 15 20 10  0] // 線形補間 == value + (int32_t)round(abs(value - end_value) * ??count / pad_width)
-     [ 0  0  0  0  0  0]] //線形補間 がされるのは要素の値が不定のとき
-                         // ??countは、if 条件が外れた際の差分
-    [[ 0  0  0  0  0  0]
-     [ 0  0  0 10  5  0]
-     [ 0  0  0 20 10  0]
-     [ 0 15 30 40 20  0]
-     [ 0  7 15 20 10  0]
-     [ 0  0  0  0  0  0]]
-    
-    [[ 0  0  0  0  0  0]
-     [ 0  2  5 10  5  0]
-     [ 0  5 10 20 10  0]
-     [ 0 15 30 40 20  0]
-     [ 0 25 50 60 30  0]
-     [ 0 12 25 30 15  0]
-     [ 0  0  0  0  0  0]]
-    
-    [[ 0  0  0  0  0  0]
-     [ 0  2  5  5  2  0]
-     [ 0  5 10 10  5  0] // ??count == (src_indices[d] == pad_width) == pad_width
-     [ 0 15 30 40 20  0] // ??count == (src_indices[d] == pad_width - 1) == pad_width - 1
-     [ 0 25 50 60 30  0] // ??count == (base_indices[d] == 0) == pad_width - (pad_width - src_indices内で最小の値)
-     [ 0 12 25 30 15  0]
-     [ 0  0  0  0  0  0]]// ??count == (base_indices[d] == src->dimensions[d] - 1) == src->dimenisons[index] - src_indices内で最大の値
-    
-    [[60 60 60 60 60 60]
-     [60 47 35 35 47 60]
-     [60 35 10 10 35 60]
-     [60 45 30 40 50 60]
-     [60 55 50 60 60 60]
-     [60 57 55 60 60 60]
-     [60 60 60 60 60 60]]
 }
 void assign_pad_maximum(NdArray* src, void *value, int64_t pad_width, NdArray *out_result)
 {
+    void *ope = NULL, *max = src->data;
+    int64_t src_total = get_totalelements(src->nd, src->dimensions);
+    SafeCastType safe = get_safecasttype(src->sdtype);
+    switch (safe->sdtype) {
+    case Long:
+        for (int64_t f = 1; f < src_total; f++) {
+            ope = src->data + f * src->itemsize;
+            max = *(int64_t*)max > *(int64_t*)ope? max : ope;
+        } break;
+    case Ulong:
+        for (int64_t f = 1; f < src_total; f++) {
+            ope = src->data + f * src->itemsize;
+            max = *(uint64_t*)max > *(uint64_t*)ope? max : ope;
+        } break;
+    case Double:
+        for (int64_t f = 1; f < src_total; f++) {
+            ope = src->data + f * src->itemsize;
+            max = *(double*)max > *(double*)ope? max : ope;
+        } break;
+    }
+    int64_t out_total = get_totalelements(out_result->nd, out_result->dimensions);
+    for (int64_t f = 0; f < out_total; f++) {
+        int64_t res_indices[NDARRAY_MAX_DIMENSIONS];
+        assign_indices(out_result->nd, out_result->dimensions, f, res_indices);
+        int64_t src_indices[NDARRAY_MAX_DIMENSIONS];
+        int inbounds = check_indicesinbounds_and_assign_indicestosrc(res_indices, src->nd, pad_width, src, src_indices, Maximum); //src側とindexが対応するようres_indicesを変換し、src_indicesに代入する
+        char *value_address;
+        if (inbounds == 0) { //拡張されていないindicesだった場合、
+            value_address = get_address(src->data, src_indices, src->strides, src->nd);
+        }
+        else { //拡張されているindicesだった場合
+            value_address = (char*)max;
+        }
+        char *out_address = get_address(out_result->data, res_indices, out_result->strides, out_result->nd);
+        memcpy(out_address, value_address, src->itemsize);
+    }
 }
 void assign_pad_mean(NdArray* src, void *value, int64_t pad_width, NdArray *out_result)
 {
+    void *mean = malloc(src->itemsize), *sum = malloc(src->itemsize);
+    if (mean == NULL || sum == NULL) {
+        SET_ERROR_MESSAGE("assign_pad_mean: malloc is NULL.");
+        goto fail;
+    }
+    assign_np_sum_return_scalar(src, sum);
+    int64_t src_total = get_totalelements(src->nd, src->dimensions);
+    SafeCastType safe = get_safecasttype(src->sdtype);
+    switch (safe->sdtype) {
+        case Long:
+            int64_t mean_l = *(int64_t*)sum / src_total;
+            memcpy(mean, &mean_l, src->itemsize);
+            break;
+        case Ulong:
+            uint64_t mean_ul = *(uint64_t*)sum / (uint64_t)src_total;
+            memcpy(mean, &mean_ul, src->itemsize);
+            break;
+    case Double:
+            double mean_d = *(double*)sum / (double)src_total;
+            memcpy(mean, &mean_d, src->itemsize);
+            break;
+    }
+    int64_t out_total = get_totalelements(out_result->nd, out_result->dimensions);
+    for (int64_t f = 0; f < out_total; f++) {
+        int64_t res_indices[NDARRAY_MAX_DIMENSIONS];
+        assign_indices(out_result->nd, out_result->dimensions, f, res_indices);
+        int64_t src_indices[NDARRAY_MAX_DIMENSIONS];
+        int inbounds = check_indicesinbounds_and_assign_indicestosrc(res_indices, src->nd, pad_width, src, src_indices, Mean); //src側とindexが対応するようres_indicesを変換し、src_indicesに代入する
+        char *value_address;
+        if (inbounds == 0) { //拡張されていないindicesだった場合、
+            value_address = get_address(src->data, src_indices, src->strides, src->nd);
+        }
+        else { //拡張されているindicesだった場合
+            value_address = (char*)mean;
+        }
+        char *out_address = get_address(out_result->data, res_indices, out_result->strides, out_result->nd);
+        memcpy(out_address, value_address, src->itemsize);
+    }
+    free(mean);
+    free(sum);
+    return;
+    fail:
+        free(mean);
+        free(sum);
 }
 void assign_pad_median(NdArray* src, void *value, int64_t pad_width, NdArray *out_result)
 {
+    void *median = malloc(src->itemsize); NdArray *sort;
+    if (median == NULL || sort == NULL) {
+        SET_ERROR_MESSAGE("assign_pad_mean: malloc is NULL.");
+        goto fail;
+    }
+    sort = np_sort(src, -1, ); //
+    int64_t src_total = get_totalelements(src->nd, src->dimensions);
+    SafeCastType safe = get_safecasttype(src->sdtype);
+    switch (safe->sdtype) {
+    case Long:
+        int64_t mean_l = *(int64_t*)sum / src_total;
+        memcpy(mean, &mean_l, src->itemsize);
+        break;
+    case Ulong:
+        uint64_t mean_ul = *(uint64_t*)sum / (uint64_t)src_total;
+        memcpy(mean, &mean_ul, src->itemsize);
+        break;
+    case Double:
+        double mean_d = *(double*)sum / (double)src_total;
+        memcpy(mean, &mean_d, src->itemsize);
+        break;
+    }
+    int64_t out_total = get_totalelements(out_result->nd, out_result->dimensions);
+    for (int64_t f = 0; f < out_total; f++) {
+        int64_t res_indices[NDARRAY_MAX_DIMENSIONS];
+        assign_indices(out_result->nd, out_result->dimensions, f, res_indices);
+        int64_t src_indices[NDARRAY_MAX_DIMENSIONS];
+        int inbounds = check_indicesinbounds_and_assign_indicestosrc(res_indices, src->nd, pad_width, src, src_indices, Mean); //src側とindexが対応するようres_indicesを変換し、src_indicesに代入する
+        char *value_address;
+        if (inbounds == 0) { //拡張されていないindicesだった場合、
+            value_address = get_address(src->data, src_indices, src->strides, src->nd);
+        }
+        else { //拡張されているindicesだった場合
+            value_address = (char*)mean;
+        }
+        char *out_address = get_address(out_result->data, res_indices, out_result->strides, out_result->nd);
+        memcpy(out_address, value_address, src->itemsize);
+    }
+    free(mean);
+    free(sum);
+    return;
+    fail:
+        free(mean);
+    free(sum);
 }
 void assign_pad_minimum(NdArray* src, void *value, int64_t pad_width, NdArray *out_result)
 {
@@ -505,19 +605,19 @@ void assign_pad_wrap(NdArray* src, void *value, int64_t pad_width, NdArray *out_
 void assign_pad_empty(NdArray* src, void *value, int64_t pad_width, NdArray *out_result)
 {
 }
-bool //
-check_indicesinbounds_and_assign_indicestosrc(int64_t *clamped_indices, int indices_nd, int64_t pad_width, NdArray *src, int64_t* out_result, PadModeType mode, )
+int //
+check_indicesinbounds_and_assign_indicestosrc(int64_t *clamped_indices, int indices_nd, int64_t pad_width, NdArray *src, int64_t* out_result, PadModeType mode)
 {
-    bool result = true;
+    int result = 0; //マクロ化したい
     for (int d = 0; d < indices_nd; d++) {
         if (clamped_indices[d] <= pad_width) {
             if (mode == Edge) {
                 out_result[d] = 0;
             }
-            else if (mode == LinearRamp) { //右の式で利用されるvalueのアドレス先をindicesとして代入する → value + (int32_t)round(abs(value - end_value) * ??count / pad_width)
+            else if (mode == LinearRamp) { //右の式で利用されるvalueのアドレス先をindicesとして代入する → value + (int32_t)round(abs(value - end_value) * pad_i / pad_width)
                 out_result[d] = 0;
             }
-            result = false;
+            result = -1;
         }
         else if (clamped_indices[d] >= src->dimensions[d] + pad_width) {
             if (mode == Edge) {
@@ -526,7 +626,7 @@ check_indicesinbounds_and_assign_indicestosrc(int64_t *clamped_indices, int indi
             else if (mode == LinearRamp) {
                 out_result[d] = src->dimensions[d] - 1;
             }
-            result = false;
+            result = 1;
         }
         else {
             out_result[d] = clamped_indices[d] - pad_width; // srcで渡されたindicesに対応するres_indicesを代入する
@@ -534,24 +634,43 @@ check_indicesinbounds_and_assign_indicestosrc(int64_t *clamped_indices, int indi
     }
     return result;
 }
-void 
-assign_adjustvalue_linearramp(void *base_value, void *end_value, void *pad_width, void *??count, void *out_result)
-{
-    *(int32_t *)result = *(int32_t *)a + *(int32_t *)b;
-    value + (int32_t)round(abs(value - end_value) * ??count / pad_width)
-}
 void
-assign_??count_linearramp(int64_t *src_indices, int64_t res_indices, int indices_nd, int64_t pad_width, int64_t out_result)
+assign_adjustvalue_linearramp(void *base_value, void *end_value, int64_t pad_width, int64_t pad_i, void *out_result, SDType sdtype)
 {
-    for (int d = 0; d < indices_nd; d++) {
-        if (src_indices[d] <= pad_width) {
-            // ??count == (src_indices[d] <= pad_width) ==  pad_width - (pad_width - src_indices[d])
-            out_result[d] == pad_width - (pad_width - src_indices[d])
+    SafeCastType safe = get_safecasttype(src->sdtype);
+    switch (safe->sdtype) {
+        // base_value + round(abs(base_value - end_value) * pad_i / pad_width)
+        case Long:
+            int64_t value = *(int64_t *)base_value + (int64_t)round((double)(llabs((*(int64_t *)base_value - (*(int64_t *)end_value) * (double)(pad_i / pad_width)));
+            memcpy(out_result, &value, sizeof(int64_t));
+        case ULong:
+            uint64_t value = *(uint64_t *)base_value + (uint64_t)round((NDARRAY_MAX((*(uint64_t *)base_value, (*(uint64_t *)end_value) - NDARRAY_MIN((*(uint64_t *)base_value, (*(uint64_t *)end_value)) * (double)(pad_i / pad_width)));
+            memcpy(out_result, &value, sizeof(uint64_t));
+        case Double:
+            double value = *(double *)base_value + fabs(*(double *)base_value - *(double *)end_value) * (double)(pad_i / pad_width);
+            memcpy(out_result, &value, sizeof(double));
+    }
+}
+int64_t
+get_pad_i_linearramp(int64_t *src_indices, int indices_nd, int64_t *src_dimentions, int64_t pad_width, int inbounds_type)
+{
+    int64_t result = 0;
+    // ここの関数にclamped_indicesが渡されている時点で、inboundsではない
+    int64_t a = src_indices[0];
+    for (int d = 1; d < indices_nd; d++) {
+        if (inbounds_type == -1) {
+            a = NDARRAY_MIN(a, src_indices[d]);
         }
-        else if (clamped_indices[d] >= src->dimensions[d] + pad_width) {
-            
+        else if (inbounds_type == 1) {
+            a = NDARRAY_MAX(a, src_indices[d]);
+        }
+        else {
+            // コードロジックに不備あり
+            return -1;
         }
     }
+    result = inbounds_type == 1? pad_width - (pad_width - a) : src_dimensions[a] - a;
+    return result;
 }
 
 NdArray*

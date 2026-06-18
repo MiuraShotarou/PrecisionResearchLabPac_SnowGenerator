@@ -56,6 +56,11 @@ typedef enum ArrayType //不要の可能性
     NdArray,
 	Multi,
     Jag
+} ArrayType;
+
+typedef enum SortKind
+{
+	
 }
 
 /* ============================================================

@@ -103,6 +103,8 @@ namespace SnowflakeNative
         public NdArray<T> Transpose(int[] size) => Packing(new NdArray<T>(), CSTranspose(this._pointer, size));
         /// <summary> Squeeze </summary>
         public NdArray<T> Squeeze() => Packing(new NdArray<T>(), CSSqueeze(this._pointer));
+        /// <summary> Sort </summary>
+        /// <summary> ArgSort </summary>
         /// <summary> Sum </summary>
         public NdArray<T> Sum(int axis = -1, bool keepdims = false) => Packing(new NdArray<T>(), CSSum(this._pointer, axis, keepdims));
         public T Sum() => CSSum<T>(this._pointer);
