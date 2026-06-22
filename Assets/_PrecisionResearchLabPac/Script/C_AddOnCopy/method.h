@@ -14,15 +14,27 @@ void assign_pad_symmetric(NdArray* src, void *value, int64_t pad_width, NdArray 
 void assign_pad_wrap     (NdArray* src, void *value, int64_t pad_width, NdArray *out_result);
 void assign_pad_empty    (NdArray* src, void *value, int64_t pad_width, NdArray *out_result);
 static Assign_Switch_Pading assign_switch_pading_table[] = {
-    assign_pad_constant,  // Constant
-    assign_pad_edge,      // Edge
-    assign_pad_linearramp,// LinearRamp
-    assign_pad_maximum,   // Maximum
-    assign_pad_mean,      // Mean
-    assign_pad_median,    // Median
-    assign_pad_minimum,   // Minimum
-    assign_pad_reflect,   // Reflect
-    assign_pad_symmetric, // Symmetric
-    assign_pad_wrap,      // Wrap
-    assign_pad_empty,     // Empty
+    assign_pad_constant,
+    assign_pad_edge,
+    assign_pad_linearramp,
+    assign_pad_maximum,
+    assign_pad_mean,
+    assign_pad_median,
+    assign_pad_minimum,
+    assign_pad_reflect,
+    assign_pad_symmetric,
+    assign_pad_wrap,
+    assign_pad_empty
+};
+
+typedef void (*Assign_Switch_Sorting)(NdArray *src, int axis, NdArray *out_result);
+void assign_sort_quicksort (NdArray *src, int axis, NdArray *out_result);
+void assign_sort_mergesort (NdArray *src, int axis, NdArray *out_result);
+void assign_sort_heapsort  (NdArray *src, int axis, NdArray *out_result);
+void assign_sort_stable    (NdArray *src, int axis, NdArray *out_result);
+static Assign_Switch_Sorting assign_switch_sorting_table[] = {
+    assign_sort_quicksort,
+    assign_sort_mergesort,
+    assign_sort_heapsort,
+    assign_sort_stable
 };

@@ -60,8 +60,11 @@ typedef enum ArrayType //不要の可能性
 
 typedef enum SortKind
 {
-	
-}
+	Quicksort,
+	Mergesort,
+	Heapsort,
+	Stable
+} SortKind;
 
 /* ============================================================
  * ORDER - 配列のメモリレイアウト順序
@@ -98,16 +101,6 @@ typedef enum SEARCHSIDE {
     SEARCHLEFT  = 0,    /* 左端（最小インデックス）を返す */
     SEARCHRIGHT = 1     /* 右端（最大インデックス）を返す */
 } SEARCHSIDE;
-
-/* ============================================================
- * SORTKIND - ソートアルゴリズムの種類
- * ============================================================ */
-typedef enum SORTKIND {
-    QUICKSORT  = 0, /* クイックソート（不安定） */
-    HEAPSORT   = 1, /* ヒープソート（不安定） */
-    MERGESORT  = 2, /* マージソート（安定） */
-    STABLESORT = 2  /* 安定ソート（MERGESORTの別名） */
-} SORTKIND;
 
 /* ============================================================
  * SELECTKIND - 部分ソートの種類

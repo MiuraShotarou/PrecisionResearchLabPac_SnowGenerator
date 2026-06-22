@@ -78,7 +78,7 @@ get_address(char *pointer, int64_t *indices, int64_t *strides, int nd)
 int
 get_adjust_axis(int axis, int nd)
 {
-    return get_adjust_index(axis, nd);
+    return axis == AXIS_NONE? AXIS_NONE : get_adjust_index(axis, nd);
 }
 
 int
